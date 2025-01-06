@@ -23,14 +23,14 @@ JEHibernate is a utility library designed to simplify the management of `EntityM
 Add the following dependency to your `pom.xml` if you are using Maven:
 
 ```xml
-# this will be added soon, for now fork the project and build it yourself through cleanMavenDeployLocally
+<!-- this will be added soon, for now fork the project and build it yourself through cleanMavenDeployLocally -->
 <dependency>
     <groupId>de.jexcellence.hibernate</groupId>
     <artifactId>jehibernate</artifactId>
     <version>1.0.0</version>
 </dependency>
 
-# or if you are using gradle:
+<!-- or if you are using gradle: -->
 implementation("de.jexcellence.hibernate:jehibernate:1.0.0")
 ```
 
