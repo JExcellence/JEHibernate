@@ -204,6 +204,21 @@ public class AbstractCRUDRepository<T, ID> {
         });
     }
 
+    public List<T> findListByAttributes(final Map<String, Object> attributes) {
+        return this.executeQuery(entityManager -> {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            Root<T> root = cq.from(this.entityClass);
+
+            Predicate[] predicates = attributes.entrySet().stream()
+              .map(entry -> cb.equal(root.get(entry.getKey()), entry.getValue()))
+              .toArray(Predicate[]::new);
+            cq.select(root).where(predicates);
+
+            return entityManager.createQuery(cq).getResultList();
+        });
+    }
+
     /**
      * Shuts down the executor service used for asynchronous operations.
      */
