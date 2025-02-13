@@ -235,7 +235,7 @@ public class AbstractCRUDRepository<T, ID> {
      * @param <R>    the type of the result
      * @return the result of the query
      */
-    private <R> R executeQuery(final Function<EntityManager, R> action) {
+    public <R> R executeQuery(final Function<EntityManager, R> action) {
         EntityTransaction transaction = null;
         try (EntityManager entityManager = this.entityManagerFactory.createEntityManager()) {
             transaction = entityManager.getTransaction();
