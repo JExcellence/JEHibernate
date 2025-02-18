@@ -36,14 +36,12 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 	 * @param entityManagerFactory the entity manager factory
 	 * @param entityClass         the class type of the entity
 	 * @param keyExtractor        function to extract the cache key from an entity
-	 * @param cacheAttributeName  the attribute name used for querying the unique key (e.g., "uniqueId")
 	 */
 	public GenericCachedRepository(
 		ExecutorService executor,
 		EntityManagerFactory entityManagerFactory,
 		Class<T> entityClass,
-		Function<T, K> keyExtractor,
-		String cacheAttributeName
+		Function<T, K> keyExtractor
 	) {
 		super(entityManagerFactory, entityClass);
 		this.executor = executor;
