@@ -19,6 +19,7 @@ dependencies {
     implementation("jakarta.transaction:jakarta.transaction-api")
     implementation("org.reflections:reflections:0.10.2")
     implementation("com.google.guava:guava:33.4.0-jre")
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.0")
 }
 
 java {
