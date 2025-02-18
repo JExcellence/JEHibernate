@@ -28,7 +28,6 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 	private final ExecutorService executor;
 	private final Cache<K, T> cache;
 	private final Function<T, K> keyExtractor;
-	private final String cacheAttributeName;
 
 	/**
 	 * Constructs a new GenericCachedRepository.
@@ -50,7 +49,6 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 		this.executor = executor;
 		this.cache = Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.MINUTES).build();
 		this.keyExtractor = keyExtractor;
-		this.cacheAttributeName = cacheAttributeName;
 	}
 
 	@Override
@@ -75,10 +73,10 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 	 * @param key the cache key value
 	 * @return the entity found, or null if not present
 	 */
-	public T findByCacheKey(final K key) {
+	public T findByCacheKey(final String queryAttribute, final K key) {
 		T cached = cache.getIfPresent(key);
 		if (cached != null) return cached;
-		T found = super.findByAttributes(Map.of(cacheAttributeName, key));
+		T found = super.findByAttributes(Map.of(queryAttribute, key));
 		if (found != null) {
 			cache.put(key, found);
 		}
@@ -91,8 +89,8 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 	 * @param key the cache key value
 	 * @return a CompletableFuture with the found entity
 	 */
-	public CompletableFuture<T> findByCacheKeyAsync(final K key) {
-		return CompletableFuture.supplyAsync(() -> this.findByCacheKey(key), executor);
+	public CompletableFuture<T> findByCacheKeyAsync(final String queryAttribute, final K key) {
+		return CompletableFuture.supplyAsync(() -> this.findByCacheKey(queryAttribute, key), executor);
 	}
 
 	@Override
