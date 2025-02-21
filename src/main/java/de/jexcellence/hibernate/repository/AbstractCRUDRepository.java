@@ -220,15 +220,6 @@ public class AbstractCRUDRepository<T, ID> {
     }
 
     /**
-     * Shuts down the executor service used for asynchronous operations.
-     */
-    public void shutdown() {
-        if (this.executorService != null) {
-            this.executorService.shutdown();
-        }
-    }
-
-    /**
      * Executes a query within a transaction and handles exceptions.
      *
      * @param action the function to execute
