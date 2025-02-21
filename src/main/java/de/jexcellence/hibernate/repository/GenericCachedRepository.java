@@ -2,7 +2,6 @@ package de.jexcellence.hibernate.repository;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import de.jexcellence.hibernate.repository.AbstractCRUDRepository;
 import jakarta.persistence.EntityManagerFactory;
 
 import java.util.List;
@@ -108,11 +107,14 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 	@Override
 	public void delete(ID id) {
 		super.delete(id);
-		// Remove from cache any entity whose getId() matches the given id.
 		cache.asMap().values().removeIf(entity -> {
 			Object entityId = getIdFromEntity(entity);
 			return entityId != null && entityId.equals(id);
 		});
+	}
+
+	public Map<K, T> getCachedEntities() {
+		return cache.asMap();
 	}
 
 	/**
