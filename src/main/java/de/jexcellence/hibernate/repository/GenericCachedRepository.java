@@ -42,7 +42,7 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
 		Class<T> entityClass,
 		Function<T, K> keyExtractor
 	) {
-		super(entityManagerFactory, entityClass);
+		super(executor, entityManagerFactory, entityClass);
 		this.executor = executor;
 		this.cache = Caffeine.newBuilder().expireAfterWrite(30, TimeUnit.MINUTES).build();
 		this.keyExtractor = keyExtractor;
