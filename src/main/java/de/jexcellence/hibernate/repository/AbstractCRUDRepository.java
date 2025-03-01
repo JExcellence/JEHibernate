@@ -3,17 +3,13 @@ package de.jexcellence.hibernate.repository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
-import jakarta.persistence.criteria.CriteriaBuilder;
-import jakarta.persistence.criteria.CriteriaQuery;
-import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -38,13 +34,14 @@ public class AbstractCRUDRepository<T, ID> {
      * @param entityClass          the class of the entity
      */
     public AbstractCRUDRepository(
-        final EntityManagerFactory entityManagerFactory,
-        final Class<T> entityClass
+            final ExecutorService executor,
+            final EntityManagerFactory entityManagerFactory,
+            final Class<T> entityClass
     ) {
         this.entityManagerFactory = entityManagerFactory;
         this.entityClass = entityClass;
         this.logger = Logger.getLogger(entityClass.getName());
-        this.executorService = Executors.newCachedThreadPool(new CustomThreadFactory());
+        this.executorService = executor;
     }
 
     /**
@@ -93,8 +90,8 @@ public class AbstractCRUDRepository<T, ID> {
      * @return a CompletableFuture containing a list of all entities
      */
     public CompletableFuture<List<T>> findAllAsync(
-        int pageNumber,
-        int pageSize
+            int pageNumber,
+            int pageSize
     ) {
         return CompletableFuture.supplyAsync(() -> findAll(pageNumber, pageSize), executorService);
     }
@@ -177,9 +174,9 @@ public class AbstractCRUDRepository<T, ID> {
             cq.select(root);
 
             return entityManager.createQuery(cq)
-                .setFirstResult(pageNumber * pageSize)
-                .setMaxResults(pageSize)
-                .getResultList();
+                    .setFirstResult(pageNumber * pageSize)
+                    .setMaxResults(pageSize)
+                    .getResultList();
         });
     }
 
@@ -195,27 +192,79 @@ public class AbstractCRUDRepository<T, ID> {
             CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
             Root<T> root = cq.from(this.entityClass);
 
-            Predicate[] predicates = attributes.entrySet().stream()
-                .map(entry -> cb.equal(root.get(entry.getKey()), entry.getValue()))
-                .toArray(Predicate[]::new);
-            cq.select(root).where(predicates);
+            try {
+                List<Predicate> predicates = new ArrayList<>();
 
-            return entityManager.createQuery(cq).getResultStream().findFirst().orElse(null);
+                for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+
+                    if (key.contains(".")) {
+                        // Handle nested attributes
+                        String[] parts = key.split("\\.");
+                        Path<?> path = root.get(parts[0]);
+
+                        for (int i = 1; i < parts.length; i++) {
+                            path = path.get(parts[i]);
+                        }
+
+                        predicates.add(cb.equal(path, value));
+                    } else {
+                        // Handle simple attributes
+                        predicates.add(cb.equal(root.get(key), value));
+                    }
+                }
+
+                cq.select(root).where(predicates.toArray(new Predicate[0]));
+                return entityManager.createQuery(cq).getResultStream().findFirst().orElse(null);
+            } catch (Exception e) {
+                this.logger.log(Level.WARNING, "Error building predicates: " + e.getMessage(), e);
+                return null;
+            }
         });
     }
 
+    /**
+     * Finds a list of entities by multiple attributes.
+     *
+     * @param attributes a map of attribute names and their corresponding values
+     * @return a list of entities matching the attributes or an empty list if none found
+     */
     public List<T> findListByAttributes(final Map<String, Object> attributes) {
         return this.executeQuery(entityManager -> {
             CriteriaBuilder cb = entityManager.getCriteriaBuilder();
             CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
             Root<T> root = cq.from(this.entityClass);
 
-            Predicate[] predicates = attributes.entrySet().stream()
-              .map(entry -> cb.equal(root.get(entry.getKey()), entry.getValue()))
-              .toArray(Predicate[]::new);
-            cq.select(root).where(predicates);
+            try {
+                List<Predicate> predicates = new ArrayList<>();
 
-            return entityManager.createQuery(cq).getResultList();
+                for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+
+                    if (key.contains(".")) {
+                        // Handle nested attributes
+                        String[] parts = key.split("\\.");
+                        Path<?> path = root.get(parts[0]);
+
+                        for (int i = 1; i < parts.length; i++) {
+                            path = path.get(parts[i]);
+                        }
+
+                        predicates.add(cb.equal(path, value));
+                    } else {
+                        // Handle simple attributes
+                        predicates.add(cb.equal(root.get(key), value));
+                    }
+                }
+
+                cq.select(root).where(predicates.toArray(new Predicate[0]));
+                return entityManager.createQuery(cq).getResultList();
+            } catch (Exception e) {
+                this.logger.log(Level.WARNING, "Error building predicates: " + e.getMessage(), e);
+                return new ArrayList<>();
+            }
         });
     }
 
@@ -241,18 +290,6 @@ public class AbstractCRUDRepository<T, ID> {
             }
             this.logger.log(Level.WARNING, "Exception occurred: ", exception);
             throw exception;
-        }
-    }
-
-    /**
-     * Custom ThreadFactory to name threads for better debugging.
-     */
-    private static class CustomThreadFactory implements ThreadFactory {
-        private int counter = 0;
-
-        @Override
-        public Thread newThread(Runnable r) {
-            return new Thread(r, "CRUDRepoThread-" + counter++);
         }
     }
 }
