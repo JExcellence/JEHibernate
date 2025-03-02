@@ -200,7 +200,6 @@ public class AbstractCRUDRepository<T, ID> {
                     Object value = entry.getValue();
 
                     if (key.contains(".")) {
-                        // Handle nested attributes
                         String[] parts = key.split("\\.");
                         Path<?> path = root.get(parts[0]);
 
@@ -210,7 +209,6 @@ public class AbstractCRUDRepository<T, ID> {
 
                         predicates.add(cb.equal(path, value));
                     } else {
-                        // Handle simple attributes
                         predicates.add(cb.equal(root.get(key), value));
                     }
                 }
@@ -244,7 +242,6 @@ public class AbstractCRUDRepository<T, ID> {
                     Object value = entry.getValue();
 
                     if (key.contains(".")) {
-                        // Handle nested attributes
                         String[] parts = key.split("\\.");
                         Path<?> path = root.get(parts[0]);
 
@@ -254,7 +251,6 @@ public class AbstractCRUDRepository<T, ID> {
 
                         predicates.add(cb.equal(path, value));
                     } else {
-                        // Handle simple attributes
                         predicates.add(cb.equal(root.get(key), value));
                     }
                 }
