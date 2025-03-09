@@ -3,11 +3,16 @@ package de.jexcellence.hibernate.entity;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.engine.spi.CascadingAction;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @MappedSuperclass
-public abstract class AbstractEntity {
+public abstract class AbstractEntity implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,46 +32,64 @@ public abstract class AbstractEntity {
     @Column(name = "deleted", nullable = false)
     private boolean deleted = false;
 
+    public AbstractEntity() {
+        // Default constructor for Hibernate
+    }
+
     @PrePersist
     protected void onPrePersist() {
-        // Pre Persist
+        if (Objects.isNull(createdAt)) {
+            createdAt = LocalDateTime.now();
+        }
+        if (Objects.isNull(updatedAt)) {
+            updatedAt = LocalDateTime.now();
+        }
     }
 
     @PreUpdate
     protected void onPreUpdate() {
-        // Pre Update
+        updatedAt = LocalDateTime.now();
     }
 
     @PostPersist
     protected void onPostPersist() {
-        // Post Persist
+        // Optional post-persist logic
     }
 
     @PostUpdate
     protected void onPostUpdate() {
-        // Post Update
+        // Optional post-update logic
     }
 
     @PreRemove
     protected void onPreRemove() {
-        // Pre Remove
+        // Optional pre-remove logic
     }
 
     public void softDelete() {
-        this.deleted = true;
-        this.onPreUpdate();
+        if (!deleted) {
+            deleted = true;
+            onPreUpdate();
+        }
+    }
+
+    public boolean isNew() {
+        return Objects.isNull(id);
     }
 
     public Long getId() {
-        return this.id;
+        return id;
     }
 
     public void setId(Long id) {
+        if (!isNew()) {
+            throw new IllegalStateException("Id cannot be set after entity persistence.");
+        }
         this.id = id;
     }
 
     public int getVersion() {
-        return this.version;
+        return version;
     }
 
     public void setVersion(int version) {
@@ -74,15 +97,18 @@ public abstract class AbstractEntity {
     }
 
     public LocalDateTime getCreatedAt() {
-        return this.createdAt;
+        return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
+        if (!isNew()) {
+            throw new IllegalStateException("CreatedAt cannot be modified after entity persistence.");
+        }
         this.createdAt = createdAt;
     }
 
     public LocalDateTime getUpdatedAt() {
-        return this.updatedAt;
+        return updatedAt;
     }
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
@@ -90,10 +116,37 @@ public abstract class AbstractEntity {
     }
 
     public boolean isDeleted() {
-        return this.deleted;
+        return deleted;
     }
 
     public void setDeleted(boolean deleted) {
-        this.deleted = deleted;
+        if (deleted) {
+            softDelete();
+        } else {
+            this.deleted = false;
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AbstractEntity that)) return false;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{" +
+                "id=" + id +
+                ", version=" + version +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", deleted=" + deleted +
+                '}';
     }
 }
