@@ -1,163 +1,291 @@
 package de.jexcellence.hibernate.repository;
 
-import de.jexcellence.hibernate.entity.AbstractEntity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.criteria.*;
-import org.hibernate.query.Query;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
-public abstract class AbstractCRUDRepository<T extends AbstractEntity, ID> {
+/**
+ * AbstractCRUDRepository provides generic CRUD operations for entities.
+ *
+ * @param <T>  the type of the entity
+ * @param <ID> the type of the entity's identifier
+ */
+public class AbstractCRUDRepository<T, ID> {
 
-    private static final Logger logger = LoggerFactory.getLogger(AbstractCRUDRepository.class);
-    private final EntityManagerFactory entityManagerFactory;
+    private final Logger logger;
     private final Class<T> entityClass;
+    private final EntityManagerFactory entityManagerFactory;
+    private final ExecutorService executorService;
 
-    public AbstractCRUDRepository(EntityManagerFactory entityManagerFactory, Class<T> entityClass) {
+    /**
+     * Constructs an AbstractCRUDRepository with the specified EntityManagerFactory and entity class.
+     *
+     * @param entityManagerFactory the factory to create EntityManager instances
+     * @param entityClass          the class of the entity
+     */
+    public AbstractCRUDRepository(
+            final ExecutorService executor,
+            final EntityManagerFactory entityManagerFactory,
+            final Class<T> entityClass
+    ) {
         this.entityManagerFactory = entityManagerFactory;
         this.entityClass = entityClass;
+        this.logger = Logger.getLogger(entityClass.getName());
+        this.executorService = executor;
     }
 
-    public Mono<T> create(T entity) {
-        return Mono.defer(() -> {
-                    logger.debug("Creating new entity of type {}", entityClass.getSimpleName());
-                    return Mono.fromCallable(() -> {
-                        try (EntityManager em = entityManagerFactory.createEntityManager()) {
-                            EntityTransaction tx = em.getTransaction();
-                            tx.begin();
-                            em.persist(entity);
-                            tx.commit();
-                            return entity;
-                        }
-                    });
-                }).doOnError(e -> logger.error("Error creating entity", e))
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(100)));
+    /**
+     * Asynchronously creates a new entity in the database.
+     *
+     * @param entity the entity to create
+     * @return a CompletableFuture containing the created entity
+     */
+    public CompletableFuture<T> createAsync(T entity) {
+        return CompletableFuture.supplyAsync(() -> this.create(entity), this.executorService);
     }
 
-    public Mono<T> update(T entity) {
-        return Mono.defer(() -> {
-                    logger.debug("Updating entity of type {}", entityClass.getSimpleName());
-                    return Mono.fromCallable(() -> {
-                        try (EntityManager em = entityManagerFactory.createEntityManager()) {
-                            EntityTransaction tx = em.getTransaction();
-                            tx.begin();
-                            T merged = em.merge(entity);
-                            tx.commit();
-                            return merged;
-                        }
-                    });
-                }).doOnError(e -> logger.error("Error updating entity", e))
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(100)));
+    /**
+     * Asynchronously updates an existing entity in the database.
+     *
+     * @param entity the entity to update
+     * @return a CompletableFuture containing the updated entity
+     */
+    public CompletableFuture<T> updateAsync(T entity) {
+        return CompletableFuture.supplyAsync(() -> update(entity), executorService);
     }
 
-    public Mono<Void> delete(ID id) {
-        return Mono.defer(() -> {
-                    logger.debug("Deleting entity of type {} with id {}", entityClass.getSimpleName(), id);
-                    return Mono.fromCallable(() -> {
-                        try (EntityManager em = entityManagerFactory.createEntityManager()) {
-                            EntityTransaction tx = em.getTransaction();
-                            tx.begin();
-                            T entity = em.find(entityClass, id);
-                            if (entity != null) {
-                                em.remove(entity);
-                            }
-                            tx.commit();
-                            return null;
-                        }
-                    });
-                }).doOnError(e -> logger.error("Error deleting entity", e))
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(100)));
+    /**
+     * Asynchronously deletes an entity by its identifier.
+     *
+     * @param id the identifier of the entity to delete
+     * @return a CompletableFuture representing the completion of the operation
+     */
+    public CompletableFuture<Void> deleteAsync(ID id) {
+        return CompletableFuture.runAsync(() -> delete(id), executorService);
     }
 
-    public Mono<Optional<T>> findById(ID id) {
-        return Mono.defer(() -> {
-                    logger.debug("Finding entity of type {} with id {}", entityClass.getSimpleName(), id);
-                    return Mono.fromCallable(() -> {
-                        try (EntityManager em = entityManagerFactory.createEntityManager()) {
-                            return Optional.ofNullable(em.find(entityClass, id));
-                        }
-                    });
-                }).doOnError(e -> logger.error("Error finding entity by id", e))
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(100)));
+    /**
+     * Asynchronously finds an entity by its identifier.
+     *
+     * @param id the identifier of the entity to find
+     * @return a CompletableFuture containing the found entity
+     */
+    public CompletableFuture<T> findByIdAsync(ID id) {
+        return CompletableFuture.supplyAsync(() -> findById(id), executorService);
     }
 
-    public Flux<T> findAll(int pageNumber, int pageSize, Map<String, String> sortBy, Map<String, Object> filters) {
-        return Flux.defer(() -> {
-                    logger.debug("Finding all entities of type {} with pagination and filters", entityClass.getSimpleName());
-                    return Flux.fromCallable(() -> {
-                        try (EntityManager em = entityManagerFactory.createEntityManager()) {
-                            CriteriaBuilder cb = em.getCriteriaBuilder();
-                            CriteriaQuery<T> cq = cb.createQuery(entityClass);
-                            Root<T> root = cq.from(entityClass);
-
-                            // Add sorting
-                            if (sortBy != null && !sortBy.isEmpty()) {
-                                List<Order> orders = new ArrayList<>();
-                                sortBy.forEach((field, direction) -> {
-                                    Path<?> path = root.get(field);
-                                    if ("desc".equalsIgnoreCase(direction)) {
-                                        orders.add(cb.desc(path));
-                                    } else {
-                                        orders.add(cb.asc(path));
-                                    }
-                                });
-                                cq.orderBy(orders);
-                            }
-
-                            // Add filtering
-                            if (filters != null && !filters.isEmpty()) {
-                                List<Predicate> predicates = new ArrayList<>();
-                                filters.forEach((key, value) -> {
-                                    if (key.contains(".")) {
-                                        String[] parts = key.split("\\.");
-                                        Path<?> path = root.get(parts[0]);
-                                        for (int i = 1; i < parts.length; i++) {
-                                            path = path.get(parts[i]);
-                                        }
-                                        predicates.add(cb.equal(path, value));
-                                    } else {
-                                        predicates.add(cb.equal(root.get(key), value));
-                                    }
-                                });
-                                cq.where(predicates.toArray(new Predicate[0]));
-                            }
-
-                            Query query = em.createQuery(cq);
-                            query.setFirstResult(pageNumber * pageSize);
-                            query.setMaxResults(pageSize);
-                            return query.getResultList();
-                        }
-                    }).flatMapMany(resultList -> Flux.fromIterable(resultList));
-                }).doOnError(e -> logger.error("Error finding all entities", e))
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(100)));
+    /**
+     * Asynchronously retrieves all entities of the specified type.
+     *
+     * @return a CompletableFuture containing a list of all entities
+     */
+    public CompletableFuture<List<T>> findAllAsync(
+            int pageNumber,
+            int pageSize
+    ) {
+        return CompletableFuture.supplyAsync(() -> findAll(pageNumber, pageSize), executorService);
     }
 
-    protected <R> Mono<R> executeQuery(Function<EntityManager, R> action) {
-        return Mono.defer(() -> {
-                    logger.debug("Executing custom query");
-                    return Mono.fromCallable(() -> {
-                        try (EntityManager em = entityManagerFactory.createEntityManager()) {
-                            EntityTransaction tx = em.getTransaction();
-                            tx.begin();
-                            R result = action.apply(em);
-                            tx.commit();
-                            return result;
+    /**
+     * Asynchronously finds an entity by multiple attributes.
+     *
+     * @param attributes a map of attribute names and their corresponding values
+     * @return a CompletableFuture containing the found entity
+     */
+    public CompletableFuture<T> findByAttributesAsync(Map<String, Object> attributes) {
+        return CompletableFuture.supplyAsync(() -> findByAttributes(attributes), executorService);
+    }
+
+    /**
+     * Creates a new entity in the database.
+     *
+     * @param entity the entity to create
+     * @return the created entity
+     */
+    public T create(final T entity) {
+        return this.executeQuery(entityManager -> {
+            entityManager.persist(entity);
+            return entity;
+        });
+    }
+
+    /**
+     * Updates an existing entity in the database.
+     *
+     * @param entity the entity to update
+     * @return the updated entity
+     */
+    public T update(T entity) {
+        return this.executeQuery(em -> em.merge(entity));
+    }
+
+    /**
+     * Deletes an entity by its identifier.
+     *
+     * @param id the identifier of the entity to delete
+     */
+    public void delete(ID id) {
+        this.executeQuery(em -> {
+            T entity = em.find(this.entityClass, id);
+            if (entity != null) {
+                em.remove(entity);
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Finds an entity by its identifier.
+     *
+     * @param id the identifier of the entity to find
+     * @return the found entity
+     */
+    public T findById(final ID id) {
+        return this.executeQuery(entityManager -> {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            Root<T> root = cq.from(this.entityClass);
+
+            cq.select(root).where(cb.equal(root.get("id"), id));
+            return entityManager.createQuery(cq).getSingleResult();
+        });
+    }
+
+    /**
+     * Retrieves all entities of the specified type.
+     *
+     * @return a list of all entities
+     */
+    public List<T> findAll(final int pageNumber, final int pageSize) {
+        return this.executeQuery(entityManager -> {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            Root<T> root = cq.from(this.entityClass);
+            cq.select(root);
+
+            return entityManager.createQuery(cq)
+                    .setFirstResult(pageNumber * pageSize)
+                    .setMaxResults(pageSize)
+                    .getResultList();
+        });
+    }
+
+    /**
+     * Finds an entity by multiple attributes.
+     *
+     * @param attributes a map of attribute names and their corresponding values
+     * @return the found entity or null if not found
+     */
+    public T findByAttributes(final Map<String, Object> attributes) {
+        return this.executeQuery(entityManager -> {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            Root<T> root = cq.from(this.entityClass);
+
+            try {
+                List<Predicate> predicates = new ArrayList<>();
+
+                for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+
+                    if (key.contains(".")) {
+                        String[] parts = key.split("\\.");
+                        Path<?> path = root.get(parts[0]);
+
+                        for (int i = 1; i < parts.length; i++) {
+                            path = path.get(parts[i]);
                         }
-                    });
-                }).doOnError(e -> logger.error("Error executing query", e))
-                .retryWhen(Retry.backoff(3, Duration.ofMillis(100)));
+
+                        predicates.add(cb.equal(path, value));
+                    } else {
+                        predicates.add(cb.equal(root.get(key), value));
+                    }
+                }
+
+                cq.select(root).where(predicates.toArray(new Predicate[0]));
+                return entityManager.createQuery(cq).getResultStream().findFirst().orElse(null);
+            } catch (Exception e) {
+                this.logger.log(Level.WARNING, "Error building predicates: " + e.getMessage(), e);
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Finds a list of entities by multiple attributes.
+     *
+     * @param attributes a map of attribute names and their corresponding values
+     * @return a list of entities matching the attributes or an empty list if none found
+     */
+    public List<T> findListByAttributes(final Map<String, Object> attributes) {
+        return this.executeQuery(entityManager -> {
+            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            Root<T> root = cq.from(this.entityClass);
+
+            try {
+                List<Predicate> predicates = new ArrayList<>();
+
+                for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+
+                    if (key.contains(".")) {
+                        String[] parts = key.split("\\.");
+                        Path<?> path = root.get(parts[0]);
+
+                        for (int i = 1; i < parts.length; i++) {
+                            path = path.get(parts[i]);
+                        }
+
+                        predicates.add(cb.equal(path, value));
+                    } else {
+                        predicates.add(cb.equal(root.get(key), value));
+                    }
+                }
+
+                cq.select(root).where(predicates.toArray(new Predicate[0]));
+                return entityManager.createQuery(cq).getResultList();
+            } catch (Exception e) {
+                this.logger.log(Level.WARNING, "Error building predicates: " + e.getMessage(), e);
+                return new ArrayList<>();
+            }
+        });
+    }
+
+    /**
+     * Executes a query within a transaction and handles exceptions.
+     *
+     * @param action the function to execute
+     * @param <R>    the type of the result
+     * @return the result of the query
+     */
+    public <R> R executeQuery(final Function<EntityManager, R> action) {
+        EntityTransaction transaction = null;
+        try (EntityManager entityManager = this.entityManagerFactory.createEntityManager()) {
+            transaction = entityManager.getTransaction();
+            transaction.begin();
+            R result = action.apply(entityManager);
+            transaction.commit();
+            return result;
+        } catch (final Exception exception) {
+            if (transaction != null && transaction.isActive()) {
+                transaction.rollback();
+                this.logger.log(Level.WARNING, "Transaction rolled back due to: {0}", exception.getLocalizedMessage());
+            }
+            this.logger.log(Level.WARNING, "Exception occurred: ", exception);
+            throw exception;
+        }
     }
 }
