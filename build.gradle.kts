@@ -39,7 +39,7 @@ publishing {
             groupId = group.toString()
             artifactId = "JEHibernate"
             version = version.toString()
-            description = "Hibernate integration for JExcellence"
+            description = "Hibernate integration by JExcellence"
         }
     }
 }
