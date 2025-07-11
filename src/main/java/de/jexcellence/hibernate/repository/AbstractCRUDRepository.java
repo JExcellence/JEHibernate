@@ -221,6 +221,16 @@ public class AbstractCRUDRepository<T, ID> {
             }
         });
     }
+    
+    /**
+     * Finds a list asynchronously by multiple attributes.
+     *
+     * @param attributes a map of attribute names and their corresponding values
+     * @return asynchronous list of entities matching the attributes or an empty list if none found
+     */
+    public CompletableFuture<List<T>> findListByAttributesAsync(final Map<String, Object> attributes) {
+        return CompletableFuture.supplyAsync(() -> this.findListByAttributes(attributes), this.executorService);
+    }
 
     /**
      * Finds a list of entities by multiple attributes.
