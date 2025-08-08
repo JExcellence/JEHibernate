@@ -41,15 +41,14 @@ publishing {
 
                 licenses {
                     license {
-                        name.set("The Apache License, Version 2.0")
+                        name.set("Apache-2.0")
                         url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
                     }
                 }
 
                 developers {
                     developer {
-                        id.set("JExcellence")
-                        organization.set("JExcellence")
+                        id.set("13140db9-1cc4-41fc-9c83-cffcce069bfa")
                         name.set("Justin Eiletz")
                         email.set("justin.eiletz@jexcellence.de")
                     }
@@ -66,27 +65,28 @@ publishing {
 
     repositories {
         maven {
-            val releasesRepoUrl = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
-            val snapshotsRepoUrl = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-            url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
+            name = "OSSRH"
+            url = uri(
+                if (version.toString().endsWith("SNAPSHOT"))
+                    "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+                else
+                    "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+            )
 
             credentials {
-                username = System.getenv("OSSRH_USERNAME")
-                password = System.getenv("OSSRH_PASSWORD")
+                username = project.findProperty("ossrhUsername")?.toString() ?: ""
+                password = project.findProperty("ossrhPassword")?.toString() ?: ""
             }
         }
     }
 }
 
 signing {
-    sign(publishing.publications["mavenJava"])
-    useInMemoryPgpKeys(
-        System.getenv("SIGNING_KEY_ID"),
-        System.getenv("SIGNING_KEY"),
-        System.getenv("SIGNING_PASSWORD")
-    )
-}
+    val signingKey: String? = project.findProperty("signingKey") as String?
+    val signingPassword: String? = project.findProperty("signingPassword") as String?
 
-tasks.register("cleanMavenDeployLocally") {
-    dependsOn("clean", "publishToMavenLocal")
+    if (signingKey != null && signingPassword != null) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign(publishing.publications["mavenJava"])
+    }
 }
