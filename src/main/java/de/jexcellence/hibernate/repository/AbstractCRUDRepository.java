@@ -61,7 +61,7 @@ public class AbstractCRUDRepository<T, ID> {
      * @return a CompletableFuture containing the updated entity
      */
     public CompletableFuture<T> updateAsync(T entity) {
-        return CompletableFuture.supplyAsync(() -> update(entity), executorService);
+        return CompletableFuture.supplyAsync(() -> this.update(entity), executorService);
     }
 
     /**
@@ -70,8 +70,8 @@ public class AbstractCRUDRepository<T, ID> {
      * @param id the identifier of the entity to delete
      * @return a CompletableFuture representing the completion of the operation
      */
-    public CompletableFuture<Void> deleteAsync(ID id) {
-        return CompletableFuture.runAsync(() -> delete(id), executorService);
+    public CompletableFuture<Boolean> deleteAsync(ID id) {
+        return CompletableFuture.supplyAsync(() -> this.delete(id), this.executorService);
     }
 
     /**
@@ -81,7 +81,7 @@ public class AbstractCRUDRepository<T, ID> {
      * @return a CompletableFuture containing the found entity
      */
     public CompletableFuture<T> findByIdAsync(ID id) {
-        return CompletableFuture.supplyAsync(() -> findById(id), executorService);
+        return CompletableFuture.supplyAsync(() -> this.findById(id), this.executorService);
     }
 
     /**
@@ -93,7 +93,7 @@ public class AbstractCRUDRepository<T, ID> {
             int pageNumber,
             int pageSize
     ) {
-        return CompletableFuture.supplyAsync(() -> findAll(pageNumber, pageSize), executorService);
+        return CompletableFuture.supplyAsync(() -> this.findAll(pageNumber, pageSize), this.executorService);
     }
 
     /**
@@ -103,7 +103,7 @@ public class AbstractCRUDRepository<T, ID> {
      * @return a CompletableFuture containing the found entity
      */
     public CompletableFuture<T> findByAttributesAsync(Map<String, Object> attributes) {
-        return CompletableFuture.supplyAsync(() -> findByAttributes(attributes), executorService);
+        return CompletableFuture.supplyAsync(() -> this.findByAttributes(attributes), this.executorService);
     }
 
     /**
@@ -134,13 +134,14 @@ public class AbstractCRUDRepository<T, ID> {
      *
      * @param id the identifier of the entity to delete
      */
-    public void delete(ID id) {
-        this.executeQuery(em -> {
+    public boolean delete(ID id) {
+        return this.executeQuery(em -> {
             T entity = em.find(this.entityClass, id);
             if (entity != null) {
                 em.remove(entity);
+                return true;
             }
-            return null;
+            return false;
         });
     }
 
@@ -186,37 +187,27 @@ public class AbstractCRUDRepository<T, ID> {
      * @param attributes a map of attribute names and their corresponding values
      * @return the found entity or null if not found
      */
-    public T findByAttributes(final Map<String, Object> attributes) {
+    public T findByAttributes(
+        final Map<String, Object> attributes
+    ) {
         return this.executeQuery(entityManager -> {
             CriteriaBuilder cb = entityManager.getCriteriaBuilder();
             CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
             Root<T> root = cq.from(this.entityClass);
 
             try {
-                List<Predicate> predicates = new ArrayList<>();
-
-                for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-                    String key = entry.getKey();
-                    Object value = entry.getValue();
-
-                    if (key.contains(".")) {
-                        String[] parts = key.split("\\.");
-                        Path<?> path = root.get(parts[0]);
-
-                        for (int i = 1; i < parts.length; i++) {
-                            path = path.get(parts[i]);
-                        }
-
-                        predicates.add(cb.equal(path, value));
-                    } else {
-                        predicates.add(cb.equal(root.get(key), value));
-                    }
-                }
-
-                cq.select(root).where(predicates.toArray(new Predicate[0]));
+                this.buildPredicate(
+                    attributes,
+                    cb,
+                    cq,
+                    root
+                );
+                
                 return entityManager.createQuery(cq).getResultStream().findFirst().orElse(null);
-            } catch (Exception e) {
-                this.logger.log(Level.WARNING, "Error building predicates: " + e.getMessage(), e);
+            } catch (
+                final Exception exception
+            ) {
+                this.logger.log(Level.WARNING, "Error building predicates: ", exception);
                 return null;
             }
         });
@@ -228,7 +219,9 @@ public class AbstractCRUDRepository<T, ID> {
      * @param attributes a map of attribute names and their corresponding values
      * @return asynchronous list of entities matching the attributes or an empty list if none found
      */
-    public CompletableFuture<List<T>> findListByAttributesAsync(final Map<String, Object> attributes) {
+    public CompletableFuture<List<T>> findListByAttributesAsync(
+        final Map<String, Object> attributes
+    ) {
         return CompletableFuture.supplyAsync(() -> this.findListByAttributes(attributes), this.executorService);
     }
 
@@ -238,37 +231,26 @@ public class AbstractCRUDRepository<T, ID> {
      * @param attributes a map of attribute names and their corresponding values
      * @return a list of entities matching the attributes or an empty list if none found
      */
-    public List<T> findListByAttributes(final Map<String, Object> attributes) {
+    public List<T> findListByAttributes(
+        final Map<String, Object> attributes
+    ) {
         return this.executeQuery(entityManager -> {
             CriteriaBuilder cb = entityManager.getCriteriaBuilder();
             CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
             Root<T> root = cq.from(this.entityClass);
 
             try {
-                List<Predicate> predicates = new ArrayList<>();
-
-                for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-                    String key = entry.getKey();
-                    Object value = entry.getValue();
-
-                    if (key.contains(".")) {
-                        String[] parts = key.split("\\.");
-                        Path<?> path = root.get(parts[0]);
-
-                        for (int i = 1; i < parts.length; i++) {
-                            path = path.get(parts[i]);
-                        }
-
-                        predicates.add(cb.equal(path, value));
-                    } else {
-                        predicates.add(cb.equal(root.get(key), value));
-                    }
-                }
-
-                cq.select(root).where(predicates.toArray(new Predicate[0]));
+                this.buildPredicate(
+                    attributes,
+                    cb,
+                    cq,
+                    root
+                );
                 return entityManager.createQuery(cq).getResultList();
-            } catch (Exception e) {
-                this.logger.log(Level.WARNING, "Error building predicates: " + e.getMessage(), e);
+            } catch (
+                final Exception exception
+            ) {
+                this.logger.log(Level.WARNING, "Error building predicates: ", exception);
                 return new ArrayList<>();
             }
         });
@@ -281,21 +263,68 @@ public class AbstractCRUDRepository<T, ID> {
      * @param <R>    the type of the result
      * @return the result of the query
      */
-    public <R> R executeQuery(final Function<EntityManager, R> action) {
+    public <R> R executeQuery(
+        final Function<EntityManager, R> action
+    ) {
         EntityTransaction transaction = null;
-        try (EntityManager entityManager = this.entityManagerFactory.createEntityManager()) {
+        try (
+            EntityManager entityManager = this.entityManagerFactory.createEntityManager()
+        ) {
             transaction = entityManager.getTransaction();
             transaction.begin();
             R result = action.apply(entityManager);
             transaction.commit();
             return result;
-        } catch (final Exception exception) {
-            if (transaction != null && transaction.isActive()) {
+        } catch (
+            final Exception exception
+        ) {
+            if (
+                transaction != null &&
+                transaction.isActive()
+            ) {
                 transaction.rollback();
-                this.logger.log(Level.WARNING, "Transaction rolled back due to: {0}", exception.getLocalizedMessage());
+                this.logger.log(Level.WARNING, "Transaction rolled back due to an error:");
             }
             this.logger.log(Level.WARNING, "Exception occurred: ", exception);
             throw exception;
         }
+    }
+    
+    /**
+     * Builds a predicate based on the provided attributes.
+     *
+     * @param attributes a map of attribute names and their corresponding values
+     * @param cb the criteria builder
+     * @param cq the criteria query
+     * @param root the root of the query
+     */
+    private void buildPredicate(
+        final Map<String, Object> attributes,
+        final CriteriaBuilder cb,
+        final CriteriaQuery<T> cq,
+        final Root<T> root
+    ) {
+        
+        List<Predicate> predicates = new ArrayList<>();
+        
+        for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            
+            if (key.contains(".")) {
+                String[] parts = key.split("\\.");
+                Path<?>  path  = root.get(parts[0]);
+                
+                for (int i = 1; i < parts.length; i++) {
+                    path = path.get(parts[i]);
+                }
+                
+                predicates.add(cb.equal(path, value));
+            } else {
+                predicates.add(cb.equal(root.get(key), value));
+            }
+        }
+        
+        cq.select(root).where(predicates.toArray(new Predicate[0]));
     }
 }

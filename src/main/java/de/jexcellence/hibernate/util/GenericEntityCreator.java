@@ -77,12 +77,19 @@ public class GenericEntityCreator<T, ID> {
 	 * @param clazz       the class of the entity
 	 * @param identifier  the identifier value obtained via "getId" if available, otherwise null
 	 */
-	private void saveIfNotExist(final T entity, final Class<?> clazz, final ID identifier) {
-		if (identifier == null)
+	private void saveIfNotExist(
+		final T entity,
+		final Class<?> clazz,
+		final ID identifier
+	) {
+		if (
+			identifier == null
+		) {
 			this.crudRepository.createAsync(entity);
-		if (identifier != null)
-			if (
-				this.crudRepository.findById(identifier) == null
-			) this.crudRepository.createAsync(entity);
+		} else if (
+			this.crudRepository.findById(identifier) == null
+		) {
+			this.crudRepository.createAsync(entity);
+		}
 	}
 }
