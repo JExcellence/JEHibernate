@@ -8,6 +8,7 @@ group = "de.jexcellence.hibernate"
 version = "1.0.0"
 
 repositories {
+    mavenLocal()
     mavenCentral()
 }
 
@@ -18,6 +19,9 @@ dependencies {
     implementation("org.reflections:reflections:0.10.2")
     implementation("com.google.guava:guava:33.4.0-jre")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.0")
+
+    implementation("com.mysql:mysql-connector-j:9.2.0")
+    implementation("com.h2database:h2:2.3.232")
 }
 
 java {
@@ -78,6 +82,7 @@ publishing {
                 password = project.findProperty("ossrhPassword")?.toString() ?: ""
             }
         }
+        mavenLocal()
     }
 }
 
