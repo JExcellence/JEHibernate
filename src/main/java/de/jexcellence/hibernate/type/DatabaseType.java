@@ -82,7 +82,7 @@ public enum DatabaseType {
      *   <li>Highly extensible with custom functions and data types</li>
      * </ul>
      */
-    POSTGRES_SQL,
+    POSTGRESQL,
     
     /**
      * MySQL - Popular open-source relational database management system.
