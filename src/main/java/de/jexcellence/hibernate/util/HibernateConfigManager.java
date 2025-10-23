@@ -51,7 +51,7 @@ public class HibernateConfigManager {
             this.properties.load(externalInputStream);
             logger.info("Properties loaded from external file: {}", filePath);
         } catch (IOException exception) {
-            logger.warn("Failed to load properties from external file: {}, attempting fallback", filePath, exception);
+            logger.warn("Failed to load properties from external file: {}, attempting fallback", filePath);
             try (InputStream internalInputStream = getClass().getClassLoader().getResourceAsStream(FALLBACK_PATH)) {
                 if (internalInputStream != null) {
                     this.properties.load(internalInputStream);
