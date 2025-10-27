@@ -2,47 +2,56 @@ package de.jexcellence.hibernate;
 
 import de.jexcellence.hibernate.util.DatabaseConnectionManager;
 import jakarta.persistence.EntityManagerFactory;
+import org.jetbrains.annotations.NotNull;
 
 /**
- * JEHibernate is a utility class that manages the lifecycle of an EntityManagerFactory.
- * It initializes the factory using a configuration file and provides methods to access
- * and close the factory.
+ * Entry point for bootstrapping JEHibernate.
+ *
+ * <p>The class encapsulates creation and lifecycle management of the shared
+ * {@link EntityManagerFactory}. A minimal usage example:</p>
+ *
+ * <pre>{@code
+ * try (JEHibernate jeHibernate = new JEHibernate("config/hibernate.properties")) {
+ *     EntityManagerFactory emf = jeHibernate.getEntityManagerFactory();
+ *     // use repositories backed by emf
+ * }
+ * }</pre>
  */
-public class JEHibernate {
+public final class JEHibernate implements AutoCloseable {
 
     private final EntityManagerFactory entityManagerFactory;
 
     /**
-     * Constructs a JEHibernate instance and initializes the EntityManagerFactory
-     * using the specified configuration file path.
+     * Creates a new bootstrap instance using the supplied configuration file.
      *
-     * @param filePath the path to the configuration file used to initialize the EntityManagerFactory
-     * @throws IllegalStateException if the EntityManagerFactory cannot be initialized
+     * @param filePath path to a Hibernate properties file (must not be blank)
+     * @throws IllegalArgumentException when {@code filePath} is {@code null} or blank
+     * @throws IllegalStateException    when the {@link EntityManagerFactory} cannot be initialised
      */
-    public JEHibernate(
-        final String filePath
-    ) {
-        if (filePath == null || filePath.isEmpty())
-            throw new IllegalArgumentException("File path must not be null or empty.");
-
+    public JEHibernate(@NotNull final String filePath) {
+        if (filePath.isBlank()) {
+            throw new IllegalArgumentException("File path must not be blank.");
+        }
         this.entityManagerFactory = new DatabaseConnectionManager(filePath).retrieveEntityManagerFactory();
     }
 
     /**
-     * Closes the EntityManagerFactory if it is open. This method should be called
-     * to release resources when the factory is no longer needed.
+     * Returns the managed {@link EntityManagerFactory}.
+     *
+     * @return the active {@link EntityManagerFactory}
      */
-    public void close() {
-        if (this.entityManagerFactory != null)
-            this.entityManagerFactory.close();
+    @NotNull
+    public EntityManagerFactory getEntityManagerFactory() {
+        return this.entityManagerFactory;
     }
 
     /**
-     * Returns the EntityManagerFactory managed by this instance.
-     *
-     * @return the EntityManagerFactory
+     * Closes the managed {@link EntityManagerFactory} if it is still open.
      */
-    public EntityManagerFactory getEntityManagerFactory() {
-        return this.entityManagerFactory;
+    @Override
+    public void close() {
+        if (this.entityManagerFactory.isOpen()) {
+            this.entityManagerFactory.close();
+        }
     }
 }
