@@ -1,4 +1,5 @@
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.authentication.http.BasicAuthentication
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
