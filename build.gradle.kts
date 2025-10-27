@@ -171,6 +171,23 @@ publishing {
     }
 }
 
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl.set(uri(sonatypeNexusUrl))
+            snapshotRepositoryUrl.set(uri(sonatypeSnapshotRepositoryUrl))
+
+            if (!sonatypeUsername.isNullOrBlank()) {
+                username.set(sonatypeUsername)
+            }
+
+            if (!sonatypePassword.isNullOrBlank()) {
+                password.set(sonatypePassword)
+            }
+        }
+    }
+}
+
 signing {
     val signingKey = (project.findProperty("signingKey") as String?) ?: System.getenv("SIGNING_KEY")
     val signingPassword = (project.findProperty("signingPassword") as String?) ?: System.getenv("SIGNING_PASSWORD")
