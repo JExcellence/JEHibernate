@@ -2,129 +2,103 @@ package de.jexcellence.hibernate.util;
 
 import de.jexcellence.hibernate.type.DatabaseType;
 import org.hibernate.cfg.AvailableSettings;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Properties;
 
 /**
- * Factory class for loading and validating Hibernate properties.
+ * Loads Hibernate properties from disk and applies sensible defaults.
  */
-public class HibernateConfigManager {
+public final class HibernateConfigManager {
 
     private static final String FALLBACK_PATH = "hibernate.properties";
-    private static final Logger logger = LoggerFactory.getLogger(HibernateConfigManager.class);
-    private final Properties properties;
+    private static final Logger LOGGER = LoggerFactory.getLogger(HibernateConfigManager.class);
 
     /**
-     * Constructs a new {@code HibernateConfigManager} with an empty {@link Properties} instance.
+     * Loads configuration from {@code filePath} and returns a validated {@link Properties} instance.
+     *
+     * @param filePath absolute or relative path to the Hibernate properties file
+     * @return validated configuration properties
+     * @throws IOException when neither the provided file nor the fallback resource can be read
      */
-    public HibernateConfigManager() {
-        this.properties = new Properties();
+    @NotNull
+    public Properties loadAndValidateProperties(@NotNull final String filePath) throws IOException {
+        final Properties properties = new Properties();
+        this.loadProperties(filePath, properties);
+        this.ensurePropertiesValidity(properties);
+        return properties;
     }
 
-    /**
-     * Loads and validates properties from the specified file path.
-     *
-     * @param filePath the path to the properties file
-     * @return the loaded and validated {@link Properties} instance
-     * @throws IOException if an error occurs while loading properties
-     */
-    public Properties loadAndValidateProperties(final String filePath) throws IOException {
-        this.loadProperties(filePath);
-        this.ensurePropertiesValidity();
-        return this.properties;
-    }
+    private void loadProperties(@NotNull final String filePath, @NotNull final Properties target) throws IOException {
+        final Path path = Path.of(filePath);
+        try (InputStream externalInputStream = Files.newInputStream(path)) {
+            target.load(externalInputStream);
+            LOGGER.info("Loaded Hibernate properties from {}", path.toAbsolutePath());
+            return;
+        } catch (final IOException exception) {
+            LOGGER.warn("Failed to read properties from {}, attempting bundled fallback", path.toAbsolutePath());
+        }
 
-    /**
-     * Loads properties from the specified file, using a fallback if necessary.
-     *
-     * @param filePath the path to the properties file
-     * @throws IOException if an error occurs while loading properties
-     */
-    private void loadProperties(final String filePath) throws IOException {
-        try (InputStream externalInputStream = Files.newInputStream(Paths.get(filePath))) {
-            this.properties.load(externalInputStream);
-            logger.info("Properties loaded from external file: {}", filePath);
-        } catch (IOException exception) {
-            logger.warn("Failed to load properties from external file: {}, attempting fallback", filePath);
-            try (InputStream internalInputStream = getClass().getClassLoader().getResourceAsStream(FALLBACK_PATH)) {
-                if (internalInputStream != null) {
-                    this.properties.load(internalInputStream);
-                    logger.info("Properties loaded from fallback file: {}", FALLBACK_PATH);
-                } else {
-                    logger.error("Fallback property file not found: {}", FALLBACK_PATH);
-                    throw new IOException("Property file not found: " + filePath + ", using fallback file: " + FALLBACK_PATH);
-                }
+        try (InputStream internalInputStream = this.getClass().getClassLoader().getResourceAsStream(FALLBACK_PATH)) {
+            if (internalInputStream == null) {
+                throw new IOException("Fallback properties file '%s' is not available".formatted(FALLBACK_PATH));
             }
+            target.load(internalInputStream);
+            LOGGER.info("Loaded Hibernate properties from bundled resource {}", FALLBACK_PATH);
         }
     }
 
-    /**
-     * Validates the loaded properties and sets default values where necessary.
-     */
-    private void ensurePropertiesValidity() {
-        DatabaseType databaseType = DatabaseType.valueOf(this.properties.getOrDefault("database.type", "H2").toString().toUpperCase());
+    private void ensurePropertiesValidity(@NotNull final Properties properties) {
+        final DatabaseType databaseType = this.resolveDatabaseType(properties.getProperty("database.type"));
 
-        if (this.properties.get(AvailableSettings.JAKARTA_JDBC_URL) == null) {
-            this.properties.put(AvailableSettings.JAKARTA_JDBC_URL, this.buildConnectionString(databaseType));
-        }
+        properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_URL, this.buildConnectionString(properties, databaseType));
 
         if (databaseType == DatabaseType.H2) {
-            this.applyDefaultH2Settings();
+            this.applyDefaultH2Settings(properties);
         } else {
-            this.checkNonH2Settings();
+            this.checkNonH2Settings(properties);
         }
     }
 
-    /**
-     * Sets default properties for H2 database configuration.
-     */
-    private void applyDefaultH2Settings() {
-        this.properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_DRIVER, "org.h2.Driver");
-        this.properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_USER, "sa");
-        this.properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_PASSWORD, "");
+    private void applyDefaultH2Settings(@NotNull final Properties properties) {
+        properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_DRIVER, "org.h2.Driver");
+        properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_USER, "sa");
+        properties.putIfAbsent(AvailableSettings.JAKARTA_JDBC_PASSWORD, "");
     }
 
-    /**
-     * Validates properties for non-H2 database configurations.
-     *
-     * @throws IllegalArgumentException if required properties are missing
-     */
-    private void checkNonH2Settings() {
-        if (!this.properties.containsKey(AvailableSettings.JAKARTA_JDBC_URL) ||
-                !this.properties.containsKey(AvailableSettings.JAKARTA_JDBC_USER) ||
-                !this.properties.containsKey(AvailableSettings.JAKARTA_JDBC_PASSWORD)) {
-            throw new IllegalArgumentException("Missing required properties for non-H2 database configuration.");
+    private void checkNonH2Settings(@NotNull final Properties properties) {
+        if (!properties.containsKey(AvailableSettings.JAKARTA_JDBC_USER) ||
+            !properties.containsKey(AvailableSettings.JAKARTA_JDBC_PASSWORD)) {
+            throw new IllegalArgumentException("Database credentials (user/password) must be provided for non-H2 databases.");
         }
     }
 
-    /**
-     * Constructs a connection string based on the database type and properties.
-     *
-     * @param databaseType the type of the database
-     * @return the constructed connection string
-     */
-    private String buildConnectionString(final DatabaseType databaseType) {
+    @NotNull
+    private DatabaseType resolveDatabaseType(@Nullable final String type) {
+        if (type == null || type.isBlank()) {
+            return DatabaseType.H2;
+        }
+        return DatabaseType.valueOf(type.toUpperCase(Locale.ROOT));
+    }
+
+    @NotNull
+    private String buildConnectionString(@NotNull final Properties properties, @NotNull final DatabaseType databaseType) {
         if (databaseType == DatabaseType.H2) {
-            return createH2ConnectionString();
+            final String databaseName = properties.getProperty("database.name", "testdb");
+            return "jdbc:h2:mem:%s;DB_CLOSE_DELAY=-1".formatted(databaseName);
         }
-        return createStandardConnectionString(databaseType);
-    }
 
-    private String createH2ConnectionString() {
-        String databaseName = this.properties.getProperty("database.name", "testdb");
-        return "jdbc:h2:mem:" + databaseName + ";DB_CLOSE_DELAY=-1";
-    }
-
-    private String createStandardConnectionString(final DatabaseType databaseType) {
-        String databaseName = this.properties.getProperty("database.name", "testdb");
-        String databaseHost = this.properties.getProperty("database.host", "localhost");
-        String databasePort = this.properties.getProperty("database.port", "3306");
-        return "jdbc:" + databaseType.name().toLowerCase() + "://" + databaseHost + ":" + databasePort + "/" + databaseName;
+        final String databaseName = properties.getProperty("database.name", "testdb");
+        final String databaseHost = properties.getProperty("database.host", "localhost");
+        final String databasePort = properties.getProperty("database.port", "3306");
+        return "jdbc:%s://%s:%s/%s".formatted(databaseType.name().toLowerCase(Locale.ROOT), databaseHost, databasePort, databaseName);
     }
 }

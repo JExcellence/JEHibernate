@@ -3,63 +3,61 @@ package de.jexcellence.hibernate.util;
 import de.jexcellence.hibernate.persistence.InfamousPersistence;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.jpa.HibernatePersistenceProvider;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Properties;
 
 /**
- * Factory class for creating and managing an {@link EntityManagerFactory} instance.
- * This class initializes the factory using properties loaded from a specified file.
+ * Creates an {@link EntityManagerFactory} from a Hibernate properties file.
  */
-public class DatabaseConnectionManager implements AutoCloseable {
+public final class DatabaseConnectionManager implements AutoCloseable {
 
-    private EntityManagerFactory entityManagerFactory;
+    private final EntityManagerFactory entityManagerFactory;
 
     /**
-     * Constructs a new {@code DatabaseConnectionManager} and initializes the
-     * {@link EntityManagerFactory} using the specified properties file.
+     * Instantiates the manager and eagerly initialises the {@link EntityManagerFactory}.
      *
-     * @param filePath the path to the properties file
+     * @param filePath location of the Hibernate properties file
+     * @throws IllegalArgumentException when {@code filePath} is {@code null} or blank
+     * @throws UncheckedIOException     when the properties file cannot be loaded
      */
-    public DatabaseConnectionManager(final String filePath) {
-        this.setupEntityManagerFactory(filePath);
-    }
-
-    /**
-     * Closes the {@link EntityManagerFactory} if it is initialized.
-     */
-    @Override
-    public void close() {
-        if (this.entityManagerFactory != null) {
-            this.entityManagerFactory.close();
+    public DatabaseConnectionManager(@NotNull final String filePath) {
+        if (filePath.isBlank()) {
+            throw new IllegalArgumentException("File path must not be blank.");
         }
+        this.entityManagerFactory = this.createEntityManagerFactory(filePath);
     }
 
     /**
-     * Returns the initialized {@link EntityManagerFactory}.
+     * Returns the managed {@link EntityManagerFactory} instance.
      *
-     * @return the {@link EntityManagerFactory} instance
-     * @throws IllegalStateException if the factory is not initialized
+     * @return the initialised {@link EntityManagerFactory}
      */
+    @NotNull
     public EntityManagerFactory retrieveEntityManagerFactory() {
-        if (this.entityManagerFactory == null) {
-            throw new IllegalStateException("EntityManagerFactory is not initialized.");
-        }
         return this.entityManagerFactory;
     }
 
     /**
-     * Initializes the {@link EntityManagerFactory} using properties loaded from the specified file.
-     *
-     * @param filePath the path to the properties file
-     * @throws RuntimeException if an error occurs while loading properties
+     * Closes the underlying {@link EntityManagerFactory}.
      */
-    private void setupEntityManagerFactory(final String filePath) {
+    @Override
+    public void close() {
+        if (this.entityManagerFactory.isOpen()) {
+            this.entityManagerFactory.close();
+        }
+    }
+
+    @NotNull
+    private EntityManagerFactory createEntityManagerFactory(@NotNull final String filePath) {
         try {
-            Properties properties = new HibernateConfigManager().loadAndValidateProperties(filePath);
-            this.entityManagerFactory = new HibernatePersistenceProvider().createContainerEntityManagerFactory(InfamousPersistence.get(), properties);
-        } catch (IOException exception) {
-            throw new RuntimeException("Failed to load properties", exception);
+            final Properties properties = new HibernateConfigManager().loadAndValidateProperties(filePath);
+            return new HibernatePersistenceProvider()
+                .createContainerEntityManagerFactory(InfamousPersistence.get(), properties);
+        } catch (final IOException exception) {
+            throw new UncheckedIOException("Failed to load Hibernate properties", exception);
         }
     }
 }
