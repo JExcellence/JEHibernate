@@ -35,6 +35,9 @@ dependencies {
     implementation("com.google.guava:guava:33.4.0-jre")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.0")
 
+    compileOnly("org.jetbrains:annotations:24.1.0")
+    testCompileOnly("org.jetbrains:annotations:24.1.0")
+
     implementation("org.postgresql:postgresql:42.7.3")
     implementation("com.mysql:mysql-connector-j:9.2.0")
     implementation("com.h2database:h2:2.3.232")
