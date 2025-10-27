@@ -1,4 +1,5 @@
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.authentication.http.BasicAuthentication
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -7,7 +8,6 @@ plugins {
     `java-library`
     `maven-publish`
     signing
-    id("io.github.gradle-nexus.publish-plugin") version "2.0.0"
 }
 
 group = "de.jexcellence.hibernate"
@@ -83,21 +83,15 @@ tasks.jar {
     }
 }
 
-val portalUsername = (project.findProperty("centralPortalUsername") as String?)
-    ?: (project.findProperty("centralUsername") as String?)
+val centralPortalUsername = (project.findProperty("centralPortalUsername") as String?)
     ?: System.getenv("CENTRAL_PORTAL_USERNAME")
-    ?: System.getenv("CENTRAL_USERNAME")
-val portalPassword = (project.findProperty("centralPortalPassword") as String?)
-    ?: (project.findProperty("centralToken") as String?)
+val centralPortalPassword = (project.findProperty("centralPortalPassword") as String?)
     ?: System.getenv("CENTRAL_PORTAL_PASSWORD")
-    ?: System.getenv("CENTRAL_TOKEN")
-
-val sonatypeUsername = (project.findProperty("sonatypeUsername") as String?) ?: portalUsername
-val sonatypePassword = (project.findProperty("sonatypePassword") as String?) ?: portalPassword
-val sonatypeNexusUrl = (project.findProperty("sonatypeNexusUrl") as String?)
-    ?: "https://ossrh-staging-api.central.sonatype.com/service/local/"
-val sonatypeSnapshotRepositoryUrl = (project.findProperty("sonatypeSnapshotRepositoryUrl") as String?)
-    ?: "https://central.sonatype.com/repository/maven-snapshots/"
+val centralPortalUrl = (project.findProperty("centralPortalUrl") as String?)
+val ossrhUsername = (project.findProperty("ossrhUsername") as String?)
+    ?: System.getenv("OSSRH_USERNAME")
+val ossrhPassword = (project.findProperty("ossrhPassword") as String?)
+    ?: System.getenv("OSSRH_PASSWORD")
 
 publishing {
     publications {
@@ -149,13 +143,26 @@ publishing {
     }
 
     repositories {
-        if (isSnapshot && !sonatypeUsername.isNullOrBlank() && !sonatypePassword.isNullOrBlank()) {
+        if (isSnapshot) {
             maven {
-                name = "CentralSnapshots"
-                url = uri(sonatypeSnapshotRepositoryUrl)
-                credentials {
-                    username = sonatypeUsername
-                    password = sonatypePassword
+                name = "SonatypeSnapshots"
+                url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+                if (!ossrhUsername.isNullOrBlank() && !ossrhPassword.isNullOrBlank()) {
+                    credentials {
+                        username = ossrhUsername
+                        password = ossrhPassword
+                    }
+                }
+            }
+        } else {
+            maven {
+                name = "CentralPortal"
+                url = uri(centralPortalUrl ?: "https://central.sonatype.com/api/v1/publish")
+                if (!centralPortalUsername.isNullOrBlank() && !centralPortalPassword.isNullOrBlank()) {
+                    credentials {
+                        username = centralPortalUsername
+                        password = centralPortalPassword
+                    }
                 }
             }
         }
@@ -185,10 +192,8 @@ signing {
     val signingKey = (project.findProperty("signingKey") as String?) ?: System.getenv("SIGNING_KEY")
     val signingPassword = (project.findProperty("signingPassword") as String?) ?: System.getenv("SIGNING_PASSWORD")
 
-    val sanitizedSigningKey = signingKey?.replace("\\n", "\n")
-
-    if (!sanitizedSigningKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
-        useInMemoryPgpKeys(sanitizedSigningKey, signingPassword)
+    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
         sign(publishing.publications["mavenJava"])
     }
 }
