@@ -84,13 +84,9 @@ tasks.jar {
 }
 
 val centralPortalUsername = (project.findProperty("centralPortalUsername") as String?)
-    ?: (project.findProperty("centralUsername") as String?)
     ?: System.getenv("CENTRAL_PORTAL_USERNAME")
-    ?: System.getenv("CENTRAL_USERNAME")
 val centralPortalPassword = (project.findProperty("centralPortalPassword") as String?)
-    ?: (project.findProperty("centralToken") as String?)
     ?: System.getenv("CENTRAL_PORTAL_PASSWORD")
-    ?: System.getenv("CENTRAL_TOKEN")
 val centralPortalUrl = (project.findProperty("centralPortalUrl") as String?)
 val ossrhUsername = (project.findProperty("ossrhUsername") as String?)
     ?: System.getenv("OSSRH_USERNAME")
@@ -167,9 +163,6 @@ publishing {
                         username = centralPortalUsername
                         password = centralPortalPassword
                     }
-                    authentication {
-                        create<BasicAuthentication>("basic")
-                    }
                 }
             }
         }
@@ -182,10 +175,8 @@ signing {
     val signingKey = (project.findProperty("signingKey") as String?) ?: System.getenv("SIGNING_KEY")
     val signingPassword = (project.findProperty("signingPassword") as String?) ?: System.getenv("SIGNING_PASSWORD")
 
-    val sanitizedSigningKey = signingKey?.replace("\\n", "\n")
-
-    if (!sanitizedSigningKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
-        useInMemoryPgpKeys(sanitizedSigningKey, signingPassword)
+    if (!signingKey.isNullOrBlank() && !signingPassword.isNullOrBlank()) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
         sign(publishing.publications["mavenJava"])
     }
 }
