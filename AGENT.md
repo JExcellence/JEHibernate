@@ -46,10 +46,11 @@ All repositories expect a per-operation EntityManager. Async operations run on a
 - **Spigot/Paper**: Store the EMF and executor in your plugin class, loading configuration from the plugin data directory.
 
 ## Build & Release Notes
-- **Gradle**: Uses `build.gradle.kts` with `maven-publish` and `signing`.
+- **Gradle**: Uses `build.gradle.kts` with `maven-publish`, `io.github.gradle-nexus.publish-plugin`, and `signing`.
 - **Publication Targets**:
-  - Releases deploy to [central.sonatype.com](https://central.sonatype.com). Provide `centralPortalUsername`/`centralPortalPassword` (or `CENTRAL_PORTAL_USERNAME`/`CENTRAL_PORTAL_PASSWORD`) and optional `centralPortalUrl`.
-  - Snapshots publish to the legacy OSSRH snapshots repository using `ossrhUsername`/`ossrhPassword`.
+  - Releases go through [Sonatype Central](https://central.sonatype.com) via the Nexus Publish plugin. Provide `sonatypeUsername`/`sonatypePassword` (or the `CENTRAL_USERNAME`/`CENTRAL_TOKEN` environment variables from your portal user token). Optional overrides: `sonatypeNexusUrl`, `sonatypeSnapshotRepositoryUrl`.
+  - Snapshots default to `https://central.sonatype.com/repository/maven-snapshots/` when the same credentials are present; otherwise they stay local (`mavenLocal`).
+- **Release Flow**: Run `./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository` once artifacts and Javadocs are ready. For validation only, omit the release step and inspect the staging repository in the Central UI.
 - **Signing**: Provide `signingKey`/`signingPassword` (or environment variables) for in-memory PGP signing. Signing is skipped if keys are absent.
 - **Artifacts**: Sources and Javadoc JARs are generated automatically via Gradle configuration.
 
@@ -76,4 +77,4 @@ All repositories expect a per-operation EntityManager. Async operations run on a
 3. Run `./gradlew test` (and `./gradlew check` when touching build logic) before submitting changes.
 4. Note any build, repository, or cache-level adjustments in the PR summary.
 
-_Last Updated: 2024-05-21_
+_Last Updated: 2025-10-27_
