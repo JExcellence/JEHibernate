@@ -3,11 +3,19 @@ package de.jexcellence.hibernate.repository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
-import jakarta.persistence.criteria.*;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
@@ -15,157 +23,81 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * AbstractCRUDRepository provides generic CRUD operations for JPA entities with both synchronous
- * and asynchronous execution capabilities.
+ * Minimal JPA repository exposing synchronous and asynchronous CRUD helpers.
  *
- * <p>This abstract repository class offers a comprehensive set of database operations including:</p>
- * <ul>
- *   <li>Basic CRUD operations (Create, Read, Update, Delete)</li>
- *   <li>Asynchronous variants of all operations using CompletableFuture</li>
- *   <li>Advanced querying with multiple attributes and nested properties</li>
- *   <li>Pagination support for large datasets</li>
- *   <li>Transaction management with automatic rollback on errors</li>
- * </ul>
- *
- * <p>All database operations are executed within managed transactions and include proper
- * exception handling with logging. The class uses JPA Criteria API for type-safe queries
- * and supports complex attribute-based searches including nested object properties.</p>
- *
- * <p>Thread safety is ensured through the use of an ExecutorService for asynchronous operations
- * and proper transaction isolation for each database operation.</p>
- *
- * @param <T>  the type of the entity this repository manages
- * @param <ID> the type of the entity's primary key identifier
- *
- * @author JExcellence
- * @version 1.0
- * @since 1.0
- * @see EntityManager
- * @see CompletableFuture
- * @see CriteriaBuilder
+ * @param <T>  managed entity type
+ * @param <ID> identifier type of the entity
  */
 public class AbstractCRUDRepository<T, ID> {
-    
+
     private final Logger logger;
     private final Class<T> entityClass;
     private final EntityManagerFactory entityManagerFactory;
     private final ExecutorService executorService;
-    
+
     /**
-     * Constructs an AbstractCRUDRepository with the specified dependencies.
+     * Creates a repository backed by the supplied dependencies.
      *
-     * <p>Initializes the repository with all required components for database operations.
-     * The logger is automatically configured using the entity class name for better
-     * traceability of operations.</p>
-     *
-     * @param executor the ExecutorService for handling asynchronous operations
-     * @param entityManagerFactory the factory to create EntityManager instances for database operations
-     * @param entityClass the Class object representing the entity type this repository manages
-     * @throws IllegalArgumentException if any parameter is null
+     * @param executor             executor used for asynchronous variants
+     * @param entityManagerFactory factory creating {@link EntityManager}s
+     * @param entityClass          entity metadata class
      */
     public AbstractCRUDRepository(
-        final ExecutorService executor,
-        final EntityManagerFactory entityManagerFactory,
-        final Class<T> entityClass
+        @NotNull final ExecutorService executor,
+        @NotNull final EntityManagerFactory entityManagerFactory,
+        @NotNull final Class<T> entityClass
     ) {
-        this.entityManagerFactory = entityManagerFactory;
-        this.entityClass = entityClass;
+        this.entityManagerFactory = Objects.requireNonNull(entityManagerFactory, "entityManagerFactory");
+        this.entityClass = Objects.requireNonNull(entityClass, "entityClass");
+        this.executorService = Objects.requireNonNull(executor, "executor");
         this.logger = Logger.getLogger(entityClass.getName());
-        this.executorService = executor;
     }
-    
+
     /**
-     * Asynchronously creates a new entity in the database.
-     *
-     * <p>This method executes the create operation on a separate thread using the configured
-     * ExecutorService. The entity will be persisted within a managed transaction.</p>
-     *
-     * @param entity the entity instance to create in the database
-     * @return a CompletableFuture that will complete with the created entity
-     * @throws RuntimeException if the entity cannot be persisted
-     * @see #create(Object)
+     * Persists {@code entity} asynchronously.
      */
-    public CompletableFuture<T> createAsync(T entity) {
+    @NotNull
+    public CompletableFuture<T> createAsync(@NotNull final T entity) {
         return CompletableFuture.supplyAsync(() -> this.create(entity), this.executorService);
     }
-    
+
     /**
-     * Asynchronously updates an existing entity in the database.
-     *
-     * <p>This method executes the update operation on a separate thread using the configured
-     * ExecutorService. The entity will be merged within a managed transaction.</p>
-     *
-     * @param entity the entity instance to update in the database
-     * @return a CompletableFuture that will complete with the updated entity
-     * @throws RuntimeException if the entity cannot be updated
-     * @see #update(Object)
+     * Updates {@code entity} asynchronously.
      */
-    public CompletableFuture<T> updateAsync(T entity) {
-        return CompletableFuture.supplyAsync(() -> this.update(entity), executorService);
+    @NotNull
+    public CompletableFuture<T> updateAsync(@NotNull final T entity) {
+        return CompletableFuture.supplyAsync(() -> this.update(entity), this.executorService);
     }
-    
+
     /**
-     * Asynchronously deletes an entity by its identifier.
-     *
-     * <p>This method executes the delete operation on a separate thread using the configured
-     * ExecutorService. The operation will be performed within a managed transaction.</p>
-     *
-     * @param id the identifier of the entity to delete
-     * @return a CompletableFuture that will complete with true if the entity was deleted, false if not found
-     * @throws RuntimeException if the delete operation fails
-     * @see #delete(Object)
+     * Deletes an entity by identifier asynchronously.
      */
-    public CompletableFuture<Boolean> deleteAsync(ID id) {
+    @NotNull
+    public CompletableFuture<Boolean> deleteAsync(@NotNull final ID id) {
         return CompletableFuture.supplyAsync(() -> this.delete(id), this.executorService);
     }
-    
+
     /**
-     * Asynchronously finds an entity by its identifier.
-     *
-     * <p>This method executes the find operation on a separate thread using the configured
-     * ExecutorService. Uses JPA Criteria API for type-safe querying.</p>
-     *
-     * @param id the identifier of the entity to find
-     * @return a CompletableFuture that will complete with the found entity, or null if not found
-     * @throws RuntimeException if the query execution fails
-     * @see #findById(Object)
+     * Resolves an entity by identifier asynchronously.
      */
-    public CompletableFuture<T> findByIdAsync(ID id) {
+    @NotNull
+    public CompletableFuture<@Nullable T> findByIdAsync(@NotNull final ID id) {
         return CompletableFuture.supplyAsync(() -> this.findById(id), this.executorService);
     }
-    
+
     /**
-     * Asynchronously retrieves a paginated list of all entities of the specified type.
-     *
-     * <p>This method executes the find operation on a separate thread using the configured
-     * ExecutorService. Supports pagination to handle large datasets efficiently.</p>
-     *
-     * @param pageNumber the zero-based page number to retrieve
-     * @param pageSize the maximum number of entities to return per page
-     * @return a CompletableFuture that will complete with a list of entities for the specified page
-     * @throws RuntimeException if the query execution fails
-     * @see #findAll(int, int)
+     * Fetches a page of entities asynchronously.
      */
-    public CompletableFuture<List<T>> findAllAsync(
-        int pageNumber,
-        int pageSize
-    ) {
+    @NotNull
+    public CompletableFuture<List<T>> findAllAsync(final int pageNumber, final int pageSize) {
         return CompletableFuture.supplyAsync(() -> this.findAll(pageNumber, pageSize), this.executorService);
     }
-    
+
     /**
-     * Asynchronously finds a single entity by multiple attributes.
-     *
-     * <p>This method executes the search operation on a separate thread using the configured
-     * ExecutorService. Supports complex queries with multiple attribute conditions and nested properties.</p>
-     *
-     * @param attributes a map where keys are attribute names (supporting dot notation for nested properties)
-     *                  and values are the expected attribute values
-     * @return a CompletableFuture that will complete with the first matching entity, or null if none found
-     * @throws RuntimeException if the query execution fails
-     * @see #findByAttributes(Map)
+     * Finds a single entity via attribute map asynchronously.
      */
-    public CompletableFuture<T> findByAttributesAsync(Map<String, Object> attributes) {
+    @NotNull
+    public CompletableFuture<@Nullable T> findByAttributesAsync(@NotNull final Map<String, Object> attributes) {
         return CompletableFuture.supplyAsync(() -> this.findByAttributes(attributes), this.executorService);
     }
     
@@ -179,7 +111,8 @@ public class AbstractCRUDRepository<T, ID> {
      * @return the created entity with any generated values populated
      * @throws RuntimeException if the entity cannot be persisted
      */
-    public T create(final T entity) {
+    @NotNull
+    public T create(@NotNull final T entity) {
         return this.executeQuery(entityManager -> {
             entityManager.persist(entity);
             return entity;
@@ -196,8 +129,9 @@ public class AbstractCRUDRepository<T, ID> {
      * @return the updated entity with the current database state
      * @throws RuntimeException if the entity cannot be updated
      */
-    public T update(T entity) {
-        return this.executeQuery(em -> em.merge(entity));
+    @NotNull
+    public T update(@NotNull final T entity) {
+        return this.executeQuery(entityManager -> entityManager.merge(entity));
     }
     
     /**
@@ -210,9 +144,9 @@ public class AbstractCRUDRepository<T, ID> {
      * @return true if the entity was found and deleted, false if the entity was not found
      * @throws RuntimeException if the delete operation fails
      */
-    public boolean delete(ID id) {
+    public boolean delete(@NotNull final ID id) {
         return this.executeQuery(em -> {
-            T entity = em.find(this.entityClass, id);
+            final T entity = em.find(this.entityClass, id);
             if (entity != null) {
                 em.remove(entity);
                 return true;
@@ -231,15 +165,9 @@ public class AbstractCRUDRepository<T, ID> {
      * @return the found entity, or null if no entity exists with the given identifier
      * @throws RuntimeException if the query execution fails
      */
-    public T findById(final ID id) {
-        return this.executeQuery(entityManager -> {
-            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
-            Root<T> root = cq.from(this.entityClass);
-            
-            cq.select(root).where(cb.equal(root.get("id"), id));
-            return entityManager.createQuery(cq).getSingleResult();
-        });
+    @Nullable
+    public T findById(@NotNull final ID id) {
+        return this.executeQuery(entityManager -> entityManager.find(this.entityClass, id));
     }
     
     /**
@@ -253,17 +181,18 @@ public class AbstractCRUDRepository<T, ID> {
      * @return a list of entities for the specified page, may be empty if no entities exist
      * @throws RuntimeException if the query execution fails
      */
+    @NotNull
     public List<T> findAll(final int pageNumber, final int pageSize) {
         return this.executeQuery(entityManager -> {
-            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
-            Root<T> root = cq.from(this.entityClass);
+            final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            final CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            final Root<T> root = cq.from(this.entityClass);
             cq.select(root);
-            
+
             return entityManager.createQuery(cq)
-                                .setFirstResult(pageNumber * pageSize)
-                                .setMaxResults(pageSize)
-                                .getResultList();
+                .setFirstResult(Math.max(pageNumber, 0) * Math.max(pageSize, 1))
+                .setMaxResults(Math.max(pageSize, 1))
+                .getResultList();
         });
     }
     
@@ -287,27 +216,18 @@ public class AbstractCRUDRepository<T, ID> {
      * @return the first matching entity, or null if no entity matches the criteria
      * @throws RuntimeException if the query execution fails
      */
-    public T findByAttributes(
-        final Map<String, Object> attributes
-    ) {
+    @Nullable
+    public T findByAttributes(@NotNull final Map<String, Object> attributes) {
         return this.executeQuery(entityManager -> {
-            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
-            Root<T> root = cq.from(this.entityClass);
-            
+            final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            final CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            final Root<T> root = cq.from(this.entityClass);
+
             try {
-                this.buildPredicate(
-                    attributes,
-                    cb,
-                    cq,
-                    root
-                );
-                
+                this.applyPredicates(attributes, cb, cq, root);
                 return entityManager.createQuery(cq).getResultStream().findFirst().orElse(null);
-            } catch (
-                  final Exception exception
-            ) {
-                this.logger.log(Level.WARNING, "Error building predicates: ", exception);
+            } catch (final RuntimeException exception) {
+                this.logger.log(Level.WARNING, "Failed to build attribute predicates", exception);
                 return null;
             }
         });
@@ -326,9 +246,8 @@ public class AbstractCRUDRepository<T, ID> {
      * @throws RuntimeException if the query execution fails
      * @see #findListByAttributes(Map)
      */
-    public CompletableFuture<List<T>> findListByAttributesAsync(
-        final Map<String, Object> attributes
-    ) {
+    @NotNull
+    public CompletableFuture<List<T>> findListByAttributesAsync(@NotNull final Map<String, Object> attributes) {
         return CompletableFuture.supplyAsync(() -> this.findListByAttributes(attributes), this.executorService);
     }
     
@@ -352,27 +271,19 @@ public class AbstractCRUDRepository<T, ID> {
      * @return a list of entities matching the attributes, or an empty list if none found
      * @throws RuntimeException if the query execution fails
      */
-    public List<T> findListByAttributes(
-        final Map<String, Object> attributes
-    ) {
+    @NotNull
+    public List<T> findListByAttributes(@NotNull final Map<String, Object> attributes) {
         return this.executeQuery(entityManager -> {
-            CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-            CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
-            Root<T> root = cq.from(this.entityClass);
-            
+            final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+            final CriteriaQuery<T> cq = cb.createQuery(this.entityClass);
+            final Root<T> root = cq.from(this.entityClass);
+
             try {
-                this.buildPredicate(
-                    attributes,
-                    cb,
-                    cq,
-                    root
-                );
+                this.applyPredicates(attributes, cb, cq, root);
                 return entityManager.createQuery(cq).getResultList();
-            } catch (
-                  final Exception exception
-            ) {
-                this.logger.log(Level.WARNING, "Error building predicates: ", exception);
-                return new ArrayList<>();
+            } catch (final RuntimeException exception) {
+                this.logger.log(Level.WARNING, "Failed to build attribute predicates", exception);
+                return Collections.emptyList();
             }
         });
     }
@@ -396,33 +307,24 @@ public class AbstractCRUDRepository<T, ID> {
      * @return the result of the executed action
      * @throws RuntimeException if the operation fails, after attempting transaction rollback
      */
-    public <R> R executeQuery(
-        final Function<EntityManager, R> action
-    ) {
+    @NotNull
+    public <R> R executeQuery(@NotNull final Function<EntityManager, R> action) {
         EntityTransaction transaction = null;
-        try (
-            EntityManager entityManager = this.entityManagerFactory.createEntityManager()
-        ) {
+        try (EntityManager entityManager = this.entityManagerFactory.createEntityManager()) {
             transaction = entityManager.getTransaction();
             transaction.begin();
-            R result = action.apply(entityManager);
+            final R result = action.apply(entityManager);
             transaction.commit();
             return result;
-        } catch (
-              final Exception exception
-        ) {
-            if (
-                transaction != null &&
-                transaction.isActive()
-            ) {
-                transaction.rollback();
-                this.logger.log(Level.WARNING, "Transaction rolled back due to an error:");
-            }
-            this.logger.log(Level.WARNING, "Exception occurred: ", exception);
-            throw exception;
+        } catch (final RuntimeException runtimeException) {
+            this.rollbackQuietly(transaction);
+            throw runtimeException;
+        } catch (final Exception exception) {
+            this.rollbackQuietly(transaction);
+            throw new IllegalStateException("Failed to execute repository operation", exception);
         }
     }
-    
+
     /**
      * Builds JPA predicates based on the provided attributes map for dynamic querying.
      *
@@ -441,33 +343,43 @@ public class AbstractCRUDRepository<T, ID> {
      * @param root the Root entity for the query
      * @throws RuntimeException if any attribute path is invalid or cannot be resolved
      */
-    private void buildPredicate(
-        final Map<String, Object> attributes,
-        final CriteriaBuilder cb,
-        final CriteriaQuery<T> cq,
-        final Root<T> root
+    private void applyPredicates(
+        @NotNull final Map<String, Object> attributes,
+        @NotNull final CriteriaBuilder cb,
+        @NotNull final CriteriaQuery<T> cq,
+        @NotNull final Root<T> root
     ) {
-        
-        List<Predicate> predicates = new ArrayList<>();
-        
+        final List<Predicate> predicates = new ArrayList<>();
+
         for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-            String key = entry.getKey();
-            Object value = entry.getValue();
-            
+            final String key = entry.getKey();
+            final Object value = entry.getValue();
+
             if (key.contains(".")) {
-                String[] parts = key.split("\\.");
-                Path<?>  path  = root.get(parts[0]);
-                
+                final String[] parts = key.split("\\.");
+                Path<?> path = root.get(parts[0]);
+
                 for (int i = 1; i < parts.length; i++) {
                     path = path.get(parts[i]);
                 }
-                
+
                 predicates.add(cb.equal(path, value));
             } else {
                 predicates.add(cb.equal(root.get(key), value));
             }
         }
-        
-        cq.select(root).where(predicates.toArray(new Predicate[0]));
+
+        cq.select(root).where(predicates.toArray(Predicate[]::new));
+    }
+
+    private void rollbackQuietly(@Nullable final EntityTransaction transaction) {
+        if (transaction == null || !transaction.isActive()) {
+            return;
+        }
+        try {
+            transaction.rollback();
+        } catch (final RuntimeException rollbackException) {
+            this.logger.log(Level.WARNING, "Failed to rollback transaction", rollbackException);
+        }
     }
 }
