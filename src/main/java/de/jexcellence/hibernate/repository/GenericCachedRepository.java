@@ -43,7 +43,12 @@ public class GenericCachedRepository<T, ID, K> extends AbstractCRUDRepository<T,
     public List<T> findAll(final int pageNumber, final int pageSize) {
         final Map<K, T> cachedEntities = this.cache.asMap();
         if (!cachedEntities.isEmpty()) {
-            return List.copyOf(cachedEntities.values());
+            final int size = Math.max(pageSize, 1);
+            final int offset = Math.max(pageNumber, 0) * size;
+            return cachedEntities.values().stream()
+                .skip(offset)
+                .limit(size)
+                .toList();
         }
 
         final List<T> entities = super.findAll(pageNumber, pageSize);
