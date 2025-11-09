@@ -1,0 +1,54 @@
+name: Publish to Maven Central
+
+on:
+  push:
+    tags:
+      - "v*"   # triggers when you push a tag like v1.0.1
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  publish:
+    name: Publish JEHibernate to Maven Central
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode and import GPG key
+        run: |
+          echo "$SIGNING_KEY" > private.key.asc
+          gpg --batch --import private.key.asc
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+
+      - name: Publish to Sonatype OSSRH
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          VERSION=$(grep "^version =" build.gradle.kts | awk -F\" '{print $2}')
+          echo "Detected version: $VERSION"
+          if [[ "$VERSION" == *SNAPSHOT* ]]; then
+            echo "Publishing snapshot build..."
+            ./gradlew publish -x test
+          else
+            echo "Publishing release build..."
+            ./gradlew publish -x test closeAndReleaseSonatypeStagingRepository
+          fi
