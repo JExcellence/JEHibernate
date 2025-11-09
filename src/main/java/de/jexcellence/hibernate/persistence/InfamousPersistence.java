@@ -22,6 +22,7 @@ import java.util.logging.Logger;
 /**
  * Lightweight {@link PersistenceUnitInfo} provider used to bootstrap Hibernate without persistence.xml.
  */
+@SuppressWarnings("deprecated")
 public final class InfamousPersistence {
 
     private static final Logger LOGGER = Logger.getLogger(InfamousPersistence.class.getName());
