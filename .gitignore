@@ -2,6 +2,7 @@
 gradle.properties
 build/
 .qodo/
+.kiro/
 .idea/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/

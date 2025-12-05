@@ -27,9 +27,7 @@ public final class InfamousPersistence {
 
     private static final Logger LOGGER = Logger.getLogger(InfamousPersistence.class.getName());
 
-    private InfamousPersistence() {
-        // utility
-    }
+    private InfamousPersistence() {}
 
     @NotNull
     public static PersistenceUnitInfo get() {
@@ -142,9 +140,7 @@ public final class InfamousPersistence {
             }
 
             @Override
-            public void addTransformer(final ClassTransformer classTransformer) {
-                // not required
-            }
+            public void addTransformer(final ClassTransformer classTransformer) {}
 
             @Override
             public ClassLoader getNewTempClassLoader() {

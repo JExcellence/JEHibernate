@@ -1,7 +1,4 @@
-import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 plugins {
     `java-library`
@@ -11,7 +8,7 @@ plugins {
 }
 
 group = "de.jexcellence.hibernate"
-version = "1.0.1"
+version = "1.0.2"
 description = "Hibernate integration utilities by JExcellence"
 
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
