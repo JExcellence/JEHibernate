@@ -1,8 +1,10 @@
+import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 plugins {
     `java-library`
-    `maven-publish`
     signing
     id("com.vanniktech.maven.publish") version "0.34.0"
 }
@@ -51,11 +53,6 @@ tasks.withType<Javadoc>().configureEach {
     options.encoding = "UTF-8"
 }
 
-val centralPortalUsername = (project.findProperty("centralPortalUsername") as String?) ?: System.getenv("CENTRAL_PORTAL_USERNAME")
-val centralPortalPassword = (project.findProperty("centralPortalPassword") as String?) ?: System.getenv("CENTRAL_PORTAL_PASSWORD")
-val ossrhUsername = (project.findProperty("ossrhUsername") as String?) ?: System.getenv("OSSRH_USERNAME")
-val ossrhPassword = (project.findProperty("ossrhPassword") as String?) ?: System.getenv("OSSRH_PASSWORD")
-
 mavenPublishing {
     coordinates(group.toString(), "JEHibernate", version.toString())
 
@@ -101,13 +98,24 @@ mavenPublishing {
     }
 }
 
+// Configure signing - read from gradle.properties
+val signingKeyProp = project.findProperty("signingInMemoryKey") as String?
+val signingPasswordProp = project.findProperty("signingInMemoryKeyPassword") as String?
+
 signing {
-    val key = project.findProperty("signingKey") as String?
-    val pass = project.findProperty("signingPassword") as String?
-    if (key != null && pass != null) {
-        useInMemoryPgpKeys(key, pass)
-        sign(publishing.publications)
-    } else {
-        logger.warn("PGP signing is not configured. Skipping signing.")
+    isRequired = signingKeyProp != null && signingPasswordProp != null
+    
+    if (signingKeyProp != null && signingPasswordProp != null) {
+        useInMemoryPgpKeys(signingKeyProp, signingPasswordProp)
+    }
+}
+
+afterEvaluate {
+    if (signingKeyProp != null && signingPasswordProp != null) {
+        publishing {
+            publications.withType<MavenPublication> {
+                signing.sign(this)
+            }
+        }
     }
 }
