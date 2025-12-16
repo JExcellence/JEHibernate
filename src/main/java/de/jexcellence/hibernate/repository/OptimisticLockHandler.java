@@ -4,14 +4,18 @@ import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.RollbackException;
 import org.hibernate.StaleObjectStateException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * Utility providing retry support for operations that may fail with optimistic locking conflicts.
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
 public final class OptimisticLockHandler {
 
@@ -24,10 +28,10 @@ public final class OptimisticLockHandler {
     }
 
     /**
-     * Executes {@code operation} and retries on optimistic lock conflicts up to {@value #MAX_RETRY_ATTEMPTS} times.
+     * Executes the operation and retries on optimistic lock conflicts.
      *
      * @param operation  unit of work that might trigger an {@link OptimisticLockException}
-     * @param entityName identifier used in log messages for contextual information
+     * @param entityName identifier used in log messages
      * @param <T>        result type
      * @return the operation result when it eventually succeeds
      * @throws Exception if retries are exhausted or a non-optimistic lock exception occurs
@@ -36,12 +40,11 @@ public final class OptimisticLockHandler {
         @NotNull final Callable<T> operation,
         @NotNull final String entityName
     ) throws Exception {
-        Objects.requireNonNull(operation, "operation");
         if (entityName.isBlank()) {
             throw new IllegalArgumentException("entityName must not be blank");
         }
 
-        int attempts = 0;
+        var attempts = 0;
         Exception lastException = null;
 
         while (attempts < MAX_RETRY_ATTEMPTS) {
@@ -75,7 +78,7 @@ public final class OptimisticLockHandler {
         throw lastException;
     }
 
-    private static boolean isOptimisticLockException(final Throwable throwable) {
+    private static boolean isOptimisticLockException(@Nullable final Throwable throwable) {
         if (throwable == null) {
             return false;
         }
@@ -88,7 +91,7 @@ public final class OptimisticLockHandler {
             return isOptimisticLockException(rollback.getCause());
         }
 
-        final String message = throwable.getMessage();
+        var message = throwable.getMessage();
         if (message != null && (
             message.contains("OptimisticLockException") ||
             message.contains("StaleObjectStateException") ||

@@ -230,7 +230,7 @@
  * 
  * @see de.jexcellence.hibernate.repository.RepositoryManager
  * @see de.jexcellence.hibernate.repository.InjectRepository
- * @see de.jexcellence.hibernate.repository.AbstractCRUDRepository
- * @see de.jexcellence.hibernate.repository.GenericCachedRepository
+ * @see de.jexcellence.hibernate.repository.CachedRepository
+ * @see de.jexcellence.hibernate.repository.BaseRepository
  */
 package de.jexcellence.hibernate.repository;

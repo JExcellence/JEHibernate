@@ -1,48 +1,36 @@
 package de.jexcellence.hibernate.util;
 
-import de.jexcellence.hibernate.persistence.InfamousPersistence;
+import de.jexcellence.hibernate.persistence.PersistenceUnitProvider;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.jpa.HibernatePersistenceProvider;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Properties;
 
 /**
  * Creates an {@link EntityManagerFactory} from a Hibernate properties file.
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
-public final class DatabaseConnectionManager implements AutoCloseable {
+public final class ConnectionFactory implements AutoCloseable {
 
     private final EntityManagerFactory entityManagerFactory;
 
-    /**
-     * Instantiates the manager and eagerly initialises the {@link EntityManagerFactory}.
-     *
-     * @param filePath location of the Hibernate properties file
-     * @throws IllegalArgumentException when {@code filePath} is {@code null} or blank
-     * @throws UncheckedIOException     when the properties file cannot be loaded
-     */
-    public DatabaseConnectionManager(@NotNull final String filePath) {
+    public ConnectionFactory(@NotNull final String filePath) {
         if (filePath.isBlank()) {
             throw new IllegalArgumentException("File path must not be blank.");
         }
         this.entityManagerFactory = this.createEntityManagerFactory(filePath);
     }
 
-    /**
-     * Returns the managed {@link EntityManagerFactory} instance.
-     *
-     * @return the initialised {@link EntityManagerFactory}
-     */
     @NotNull
-    public EntityManagerFactory retrieveEntityManagerFactory() {
+    public EntityManagerFactory getEntityManagerFactory() {
         return this.entityManagerFactory;
     }
 
-    /**
-     * Closes the underlying {@link EntityManagerFactory}.
-     */
     @Override
     public void close() {
         if (this.entityManagerFactory.isOpen()) {
@@ -53,9 +41,9 @@ public final class DatabaseConnectionManager implements AutoCloseable {
     @NotNull
     private EntityManagerFactory createEntityManagerFactory(@NotNull final String filePath) {
         try {
-            final Properties properties = new HibernateConfigManager().loadAndValidateProperties(filePath);
+            var properties = new ConfigLoader().loadAndValidateProperties(filePath);
             return new HibernatePersistenceProvider()
-                .createContainerEntityManagerFactory(InfamousPersistence.get(), properties);
+                .createContainerEntityManagerFactory(PersistenceUnitProvider.get(), properties);
         } catch (final IOException exception) {
             throw new UncheckedIOException("Failed to load Hibernate properties", exception);
         }

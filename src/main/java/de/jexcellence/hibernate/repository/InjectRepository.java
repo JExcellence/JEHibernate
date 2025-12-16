@@ -6,28 +6,35 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks fields that should receive repository instances through dependency injection.
- * <p>
- * This annotation is used by the {@link RepositoryManager} to automatically inject
- * repository instances into fields at runtime. The field type must match a registered
- * repository class.
- * </p>
- * 
- * <p>Example usage:</p>
- * <pre>
+ * Marks classes or fields that should receive repository instances through dependency injection.
+ *
+ * <p>Can be applied at class level to inject all repository fields, or at field level for selective injection.
+ *
+ * <p>Class-level example:
+ * <pre>{@code
+ * @InjectRepository
  * public class UserService {
- *     {@literal @}InjectRepository
  *     private UserRepository userRepository;
- *     
- *     public User findUser(UUID id) {
- *         return userRepository.findById(id);
- *     }
+ *     private PlayerRepository playerRepository;
  * }
- * </pre>
- * 
+ * }</pre>
+ *
+ * <p>Field-level example:
+ * <pre>{@code
+ * public class UserService {
+ *     @InjectRepository
+ *     private UserRepository userRepository;
+ * }
+ * }</pre>
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  * @see RepositoryManager#injectInto(Object)
+ * @see RepositoryManager#register(Class, Class) (Class)
+ * @see RepositoryManager#createWithInjection(Class) (Class, Object...)
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
+@Target({ElementType.TYPE, ElementType.FIELD})
 public @interface InjectRepository {
 }

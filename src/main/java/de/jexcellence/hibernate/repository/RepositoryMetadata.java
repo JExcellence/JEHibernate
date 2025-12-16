@@ -8,60 +8,58 @@ import java.util.function.Function;
 
 /**
  * Immutable data class that stores repository registration information.
- * <p>
- * This class holds metadata about registered repositories including the repository class,
- * entity class, and an optional key extractor function for cached repositories.
- * </p>
- * 
- * @param <T> the entity type managed by the repository
+ *
+ * @param <T>  the entity type managed by the repository
  * @param <ID> the identifier type of the entity
- * @param <K> the cache key type (for GenericCachedRepository)
+ * @param <K>  the cache key type (for GenericCachedRepository)
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
 public final class RepositoryMetadata<T, ID, K> {
 
-    private final Class<? extends AbstractCRUDRepository<T, ID>> repositoryClass;
+    private final Class<? extends BaseRepository<T, ID>> repositoryClass;
     private final Class<T> entityClass;
     private final Function<T, K> keyExtractor;
 
     /**
      * Creates a new RepositoryMetadata instance.
-     * 
-     * @param repositoryClass the repository class that extends AbstractCRUDRepository
-     * @param entityClass the entity class managed by the repository
-     * @param keyExtractor optional key extractor function for GenericCachedRepository (may be null)
-     * @throws NullPointerException if repositoryClass or entityClass is null
-     * @throws IllegalArgumentException if repositoryClass does not extend AbstractCRUDRepository
+     *
+     * @param repositoryClass the repository class that extends BaseRepository
+     * @param entityClass     the entity class managed by the repository
+     * @param keyExtractor    optional key extractor function for CachedRepository
+     * @throws IllegalArgumentException if repositoryClass does not extend BaseRepository
      */
     public RepositoryMetadata(
-        @NotNull final Class<? extends AbstractCRUDRepository<T, ID>> repositoryClass,
+        @NotNull final Class<? extends BaseRepository<T, ID>> repositoryClass,
         @NotNull final Class<T> entityClass,
         @Nullable final Function<T, K> keyExtractor
     ) {
         this.repositoryClass = repositoryClass;
         this.entityClass = entityClass;
 
-        if (!AbstractCRUDRepository.class.isAssignableFrom(repositoryClass)) {
+        if (!BaseRepository.class.isAssignableFrom(repositoryClass)) {
             throw new IllegalArgumentException(
-                "Repository class " + repositoryClass.getName() + " must extend AbstractCRUDRepository"
+                "Repository class " + repositoryClass.getName() + " must extend BaseRepository"
             );
         }
-        
+
         this.keyExtractor = keyExtractor;
     }
 
     /**
      * Gets the repository class.
-     * 
-     * @return the repository class that extends AbstractCRUDRepository
+     *
+     * @return the repository class that extends BaseRepository
      */
     @NotNull
-    public Class<? extends AbstractCRUDRepository<T, ID>> getRepositoryClass() {
+    public Class<? extends BaseRepository<T, ID>> getRepositoryClass() {
         return this.repositoryClass;
     }
 
     /**
      * Gets the entity class managed by the repository.
-     * 
+     *
      * @return the entity class
      */
     @NotNull
@@ -71,7 +69,7 @@ public final class RepositoryMetadata<T, ID, K> {
 
     /**
      * Gets the optional key extractor function for cached repositories.
-     * 
+     *
      * @return the key extractor function, or null if not applicable
      */
     @Nullable
@@ -81,33 +79,37 @@ public final class RepositoryMetadata<T, ID, K> {
 
     /**
      * Checks if this metadata includes a key extractor.
-     * 
-     * @return true if a key extractor is present, false otherwise
+     *
+     * @return {@code true} if a key extractor is present
      */
     public boolean hasKeyExtractor() {
         return this.keyExtractor != null;
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        RepositoryMetadata<?, ?, ?> that = (RepositoryMetadata<?, ?, ?>) o;
-        return Objects.equals(repositoryClass, that.repositoryClass) &&
-               Objects.equals(entityClass, that.entityClass);
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || this.getClass() != o.getClass()) {
+            return false;
+        }
+        var that = (RepositoryMetadata<?, ?, ?>) o;
+        return Objects.equals(this.repositoryClass, that.repositoryClass) &&
+               Objects.equals(this.entityClass, that.entityClass);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(repositoryClass, entityClass);
+        return Objects.hash(this.repositoryClass, this.entityClass);
     }
 
     @Override
     public String toString() {
         return "RepositoryMetadata{" +
-               "repositoryClass=" + repositoryClass.getName() +
-               ", entityClass=" + entityClass.getName() +
-               ", hasKeyExtractor=" + hasKeyExtractor() +
+               "repositoryClass=" + this.repositoryClass.getName() +
+               ", entityClass=" + this.entityClass.getName() +
+               ", hasKeyExtractor=" + this.hasKeyExtractor() +
                '}';
     }
 }

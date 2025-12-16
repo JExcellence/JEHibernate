@@ -9,6 +9,7 @@ import jakarta.persistence.spi.ClassTransformer;
 import jakarta.persistence.spi.PersistenceUnitInfo;
 import jakarta.persistence.spi.PersistenceUnitTransactionType;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.sql.DataSource;
 import java.net.URL;
@@ -20,72 +21,88 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Lightweight {@link PersistenceUnitInfo} provider used to bootstrap Hibernate without persistence.xml.
+ * Provides {@link PersistenceUnitInfo} for programmatic Hibernate bootstrap without persistence.xml.
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
-@SuppressWarnings("deprecated")
-public final class InfamousPersistence {
+@SuppressWarnings("UnstableApiUsage")
+public final class PersistenceUnitProvider {
 
-    private static final Logger LOGGER = Logger.getLogger(InfamousPersistence.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(PersistenceUnitProvider.class.getName());
 
-    private InfamousPersistence() {}
+    private PersistenceUnitProvider() {
+    }
 
     @NotNull
     public static PersistenceUnitInfo get() {
         return new PersistenceUnitInfo() {
 
             @Override
+            @NotNull
             public String getPersistenceUnitName() {
                 return "JEPersistenceUnit";
             }
 
             @Override
+            @Nullable
             public String getPersistenceProviderClassName() {
                 return null;
             }
 
             @Override
+            @NotNull
             public String getScopeAnnotationName() {
                 return "";
             }
 
             @Override
+            @NotNull
             public List<String> getQualifierAnnotationNames() {
                 return List.of();
             }
 
             @Override
+            @NotNull
             public PersistenceUnitTransactionType getTransactionType() {
                 return PersistenceUnitTransactionType.RESOURCE_LOCAL;
             }
 
             @Override
+            @Nullable
             public DataSource getJtaDataSource() {
                 return null;
             }
 
             @Override
+            @Nullable
             public DataSource getNonJtaDataSource() {
                 return null;
             }
 
             @Override
+            @NotNull
             public List<String> getMappingFileNames() {
                 return Collections.emptyList();
             }
 
             @Override
+            @NotNull
             public List<URL> getJarFileUrls() {
                 return Collections.emptyList();
             }
 
             @Override
+            @Nullable
             public URL getPersistenceUnitRootUrl() {
                 return null;
             }
 
             @Override
+            @NotNull
             public List<String> getManagedClassNames() {
-                final List<String> managed = new ArrayList<>();
+                var managed = new ArrayList<String>();
                 try {
                     ClassPath
                         .from(this.getClass().getClassLoader())
@@ -94,7 +111,7 @@ public final class InfamousPersistence {
                         .filter(info -> info.getPackageName().contains("database.entity"))
                         .forEach(info -> {
                             try {
-                                final Class<?> candidate = info.load();
+                                var candidate = info.load();
                                 if (candidate.isAnnotationPresent(Entity.class)) {
                                     managed.add(candidate.getName());
                                 }
@@ -115,34 +132,41 @@ public final class InfamousPersistence {
             }
 
             @Override
+            @NotNull
             public SharedCacheMode getSharedCacheMode() {
                 return SharedCacheMode.UNSPECIFIED;
             }
 
             @Override
+            @NotNull
             public ValidationMode getValidationMode() {
                 return ValidationMode.AUTO;
             }
 
             @Override
+            @NotNull
             public Properties getProperties() {
                 return new Properties();
             }
 
             @Override
+            @NotNull
             public String getPersistenceXMLSchemaVersion() {
                 return "3.1";
             }
 
             @Override
+            @NotNull
             public ClassLoader getClassLoader() {
                 return JEHibernate.class.getClassLoader();
             }
 
             @Override
-            public void addTransformer(final ClassTransformer classTransformer) {}
+            public void addTransformer(final ClassTransformer classTransformer) {
+            }
 
             @Override
+            @NotNull
             public ClassLoader getNewTempClassLoader() {
                 return JEHibernate.class.getClassLoader();
             }

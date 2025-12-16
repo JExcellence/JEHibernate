@@ -103,6 +103,24 @@ public enum DatabaseType {
     MYSQL,
     
     /**
+     * MariaDB - Community-developed fork of MySQL with enhanced features.
+     *
+     * <p>MariaDB is a community-developed, commercially supported fork of the MySQL relational
+     * database management system. It is intended to remain free and open-source software under
+     * the GNU General Public License.</p>
+     *
+     * <p>Key characteristics:</p>
+     * <ul>
+     *   <li>Drop-in replacement for MySQL</li>
+     *   <li>Enhanced performance and optimization</li>
+     *   <li>Additional storage engines (Aria, ColumnStore)</li>
+     *   <li>Active community development</li>
+     *   <li>Better open-source licensing guarantees</li>
+     * </ul>
+     */
+    MARIADB,
+    
+    /**
      * SQLite - Lightweight, serverless, self-contained SQL database engine.
      *
      * <p>SQLite is a C-language library that implements a small, fast, self-contained,
