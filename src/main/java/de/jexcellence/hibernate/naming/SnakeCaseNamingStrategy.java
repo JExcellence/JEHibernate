@@ -7,15 +7,22 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serial;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
  * Physical naming strategy that converts camelCase identifiers to snake_case.
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
-public final class JENamingStrategy extends PhysicalNamingStrategyStandardImpl {
+public final class SnakeCaseNamingStrategy extends PhysicalNamingStrategyStandardImpl {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(JENamingStrategy.class);
+    @Serial
+    private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = LoggerFactory.getLogger(SnakeCaseNamingStrategy.class);
     private static final Pattern CAMEL_CASE = Pattern.compile("([a-z])([A-Z])");
 
     @Override
@@ -34,7 +41,7 @@ public final class JENamingStrategy extends PhysicalNamingStrategyStandardImpl {
     }
 
     private Identifier convert(@NotNull final Identifier logicalName) {
-        final String converted = CAMEL_CASE.matcher(logicalName.getText())
+        var converted = CAMEL_CASE.matcher(logicalName.getText())
             .replaceAll("$1_$2")
             .replace('-', '_')
             .toLowerCase(Locale.ROOT);

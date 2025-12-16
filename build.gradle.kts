@@ -1,7 +1,5 @@
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 plugins {
     `java-library`
@@ -10,7 +8,7 @@ plugins {
 }
 
 group = "de.jexcellence.hibernate"
-version = "1.0.2"
+version = "1.1.0"
 description = "Hibernate integration utilities by JExcellence"
 
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
@@ -30,22 +28,35 @@ dependencies {
     implementation("com.google.guava:guava:33.4.0-jre")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.0")
 
-    compileOnly("org.jetbrains:annotations:24.1.0")
-    testCompileOnly("org.jetbrains:annotations:24.1.0")
+    compileOnly("org.jetbrains:annotations:26.0.1")
+    testCompileOnly("org.jetbrains:annotations:26.0.1")
 
-    implementation("org.postgresql:postgresql:42.7.3")
+    implementation("org.postgresql:postgresql:42.7.5")
     implementation("com.mysql:mysql-connector-j:9.2.0")
-    implementation("com.h2database:h2:2.3.232")
-    implementation("org.slf4j:slf4j-api:2.0.13")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
-    testImplementation("org.assertj:assertj-core:3.24.2")
-    testImplementation("org.mockito:mockito-core:5.5.0")
-    testImplementation("com.h2database:h2:2.3.232")
+    implementation("com.h2database:h2:2.4.240")
+    implementation("org.slf4j:slf4j-api:2.0.16")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("org.assertj:assertj-core:3.27.3")
+    testImplementation("org.mockito:mockito-core:5.15.2")
+    testImplementation("com.h2database:h2:2.4.240")
+    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.16")
 }
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release.set(21)
+}
+
+tasks.test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
+}
+
+tasks.named("build") {
+    dependsOn(tasks.test)
 }
 
 tasks.withType<Javadoc>().configureEach {

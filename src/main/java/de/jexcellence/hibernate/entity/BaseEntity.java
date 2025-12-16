@@ -16,16 +16,24 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
  * Base entity providing id, auditing timestamps and soft-delete support.
+ *
+ * <p>All entities should extend this class to inherit common fields and lifecycle hooks.
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
 @MappedSuperclass
-public abstract class AbstractEntity implements Serializable {
+public abstract class BaseEntity implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
 
     @Id
@@ -46,13 +54,12 @@ public abstract class AbstractEntity implements Serializable {
     @Column(name = "deleted", nullable = false)
     private boolean deleted = false;
 
-    protected AbstractEntity() {
-        // JPA requirement
+    protected BaseEntity() {
     }
 
     @PrePersist
     protected void onPrePersist() {
-        final LocalDateTime now = LocalDateTime.now();
+        var now = LocalDateTime.now();
         if (this.createdAt == null) {
             this.createdAt = now;
         }
@@ -68,17 +75,14 @@ public abstract class AbstractEntity implements Serializable {
 
     @PostPersist
     protected void onPostPersist() {
-        // hook for subclasses
     }
 
     @PostUpdate
     protected void onPostUpdate() {
-        // hook for subclasses
     }
 
     @PreRemove
     protected void onPreRemove() {
-        // hook for subclasses
     }
 
     public void softDelete() {
@@ -101,7 +105,7 @@ public abstract class AbstractEntity implements Serializable {
         if (!this.isNew()) {
             throw new IllegalStateException("Id cannot be set after persistence");
         }
-        this.id = Objects.requireNonNull(id, "id");
+        this.id = id;
     }
 
     public int getVersion() {
@@ -121,7 +125,7 @@ public abstract class AbstractEntity implements Serializable {
         if (!this.isNew()) {
             throw new IllegalStateException("createdAt cannot be changed after persistence");
         }
-        this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        this.createdAt = createdAt;
     }
 
     @Nullable
@@ -130,7 +134,7 @@ public abstract class AbstractEntity implements Serializable {
     }
 
     public void setUpdatedAt(@NotNull final LocalDateTime updatedAt) {
-        this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
+        this.updatedAt = updatedAt;
     }
 
     public boolean isDeleted() {
@@ -150,7 +154,7 @@ public abstract class AbstractEntity implements Serializable {
         if (this == other) {
             return true;
         }
-        if (!(other instanceof AbstractEntity that)) {
+        if (!(other instanceof BaseEntity that)) {
             return false;
         }
         return Objects.equals(this.id, that.id);

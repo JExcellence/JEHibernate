@@ -8,17 +8,23 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 /**
- * Persists {@link UUID} values as compact {@code byte[16]} columns.
+ * Converts {@link UUID} values to compact {@code byte[16]} for database storage.
+ *
+ * @author JExcellence
+ * @version 1.0
+ * @since 1.0
  */
 @Converter(autoApply = true)
-public final class UUIDConverter implements AttributeConverter<UUID, byte[]> {
+public final class UuidBytesConverter implements AttributeConverter<UUID, byte[]> {
+
+    private static final int UUID_BYTE_LENGTH = 16;
 
     @Override
     public byte @Nullable [] convertToDatabaseColumn(@Nullable final UUID uuid) {
         if (uuid == null) {
             return null;
         }
-        final ByteBuffer buffer = ByteBuffer.wrap(new byte[16]);
+        var buffer = ByteBuffer.wrap(new byte[UUID_BYTE_LENGTH]);
         buffer.putLong(uuid.getMostSignificantBits());
         buffer.putLong(uuid.getLeastSignificantBits());
         return buffer.array();
@@ -30,12 +36,12 @@ public final class UUIDConverter implements AttributeConverter<UUID, byte[]> {
         if (bytes == null) {
             return null;
         }
-        if (bytes.length != 16) {
+        if (bytes.length != UUID_BYTE_LENGTH) {
             throw new IllegalArgumentException("UUID column must contain exactly 16 bytes");
         }
-        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        final long mostSignificant = buffer.getLong();
-        final long leastSignificant = buffer.getLong();
+        var buffer = ByteBuffer.wrap(bytes);
+        var mostSignificant = buffer.getLong();
+        var leastSignificant = buffer.getLong();
         return new UUID(mostSignificant, leastSignificant);
     }
 }
