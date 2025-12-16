@@ -29,14 +29,99 @@ dependencies {
 
 ### 1. Create hibernate.properties
 ```properties
+# ============================================
+# Database Type Selection
+# ============================================
+# Supported types: H2, MYSQL, MARIADB, POSTGRESQL, ORACLE, MSSQL_SERVER, SQLITE, HSQLDB
+# Default: H2 (embedded, no external database required)
 database.type=H2
 
+# ============================================
+# H2 Database Configuration (Default - Embedded)
+# ============================================
+# H2 is used by default for easy setup without external database
+# Mode options: mem (in-memory), file (persistent)
 h2.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+h2.driver=org.h2.Driver
+h2.dialect=org.hibernate.dialect.H2Dialect
 h2.username=sa
 h2.password=
 
+# ============================================
+# MySQL Database Configuration
+# ============================================
+mysql.url=jdbc:mysql://localhost:3306/mydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8
+mysql.driver=com.mysql.cj.jdbc.Driver
+mysql.dialect=org.hibernate.dialect.MySQLDialect
+mysql.username=root
+mysql.password=change_me
+
+# ============================================
+# MariaDB Database Configuration
+# ============================================
+mariadb.url=jdbc:mariadb://localhost:3306/mydb?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+mariadb.driver=org.mariadb.jdbc.Driver
+mariadb.dialect=org.hibernate.dialect.MariaDBDialect
+mariadb.username=root
+mariadb.password=change_me
+
+# ============================================
+# PostgreSQL Database Configuration
+# ============================================
+postgresql.url=jdbc:postgresql://localhost:5432/mydb
+postgresql.driver=org.postgresql.Driver
+postgresql.dialect=org.hibernate.dialect.PostgreSQLDialect
+postgresql.username=postgres
+postgresql.password=change_me
+
+# ============================================
+# Oracle Database Configuration
+# ============================================
+oracle.url=jdbc:oracle:thin:@localhost:1521:orcl
+oracle.driver=oracle.jdbc.OracleDriver
+oracle.dialect=org.hibernate.dialect.OracleDialect
+oracle.username=system
+oracle.password=change_me
+
+# ============================================
+# Microsoft SQL Server Configuration
+# ============================================
+mssql.url=jdbc:sqlserver://localhost:1433;databaseName=mydb;encrypt=false
+mssql.driver=com.microsoft.sqlserver.jdbc.SQLServerDriver
+mssql.dialect=org.hibernate.dialect.SQLServerDialect
+mssql.username=sa
+mssql.password=change_me
+
+# ============================================
+# Hibernate Configuration
+# ============================================
+# Schema management: validate, update, create, create-drop, none
+# Recommended: validate for production, update for development
 hibernate.hbm2ddl.auto=update
-hibernate.show_sql=true
+
+# Show SQL statements in console (disable in production)
+hibernate.show_sql=false
+
+# Format SQL statements for readability
+hibernate.format_sql=false
+
+# Highlight SQL syntax in console output
+hibernate.highlight_sql=false
+
+# Use SQL comments for debugging
+hibernate.use_sql_comments=false
+
+# Batch size for bulk operations
+hibernate.jdbc.batch_size=25
+
+# Order inserts for better batching
+hibernate.order_inserts=true
+
+# Order updates for better batching
+hibernate.order_updates=true
+
+# Generate statistics (disable in production)
+hibernate.generate_statistics=false
 ```
 
 ### 2. Bootstrap
