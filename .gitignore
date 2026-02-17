@@ -1,18 +1,15 @@
-.gradle
-gradle.properties
+# Gradle
+.gradle/
 build/
-.qodo/
-.kiro/
-.idea/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+# Sensitive credentials
+gradle.properties
+
+# IDE - IntelliJ IDEA
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -20,7 +17,7 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### Eclipse ###
+# IDE - Eclipse
 .apt_generated
 .classpath
 .factorypath
@@ -32,16 +29,20 @@ bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
-### NetBeans ###
+# IDE - NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
+# IDE - VS Code
 .vscode/
 
-### Mac OS ###
-.DS_Store.qodo
-.qodo
+# OS
+.DS_Store
+Thumbs.db
+
+# Kiro/Qodo
+.kiro/
+.qodo/
