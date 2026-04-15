@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew compileJava)",
+      "Bash(./gradlew test:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(./gradlew compileTestJava)",
+      "Bash(./gradlew publishAllPublicationsToMavenCentralRepository --info)",
+      "Bash(./gradlew publishAllPublicationsToMavenCentralRepository)",
+      "Bash(./gradlew properties:*)",
+      "Bash(cd /tmp)",
+      "Bash(jar xf:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(jar tf:*)",
+      "Bash(\"/c/Users/Privat/.jdks/openjdk-24/bin/jar\" tf:*)",
+      "Bash(java -version)"
+    ]
+  }
+}
