@@ -8,8 +8,8 @@ plugins {
 }
 
 group = "de.jexcellence.hibernate"
-version = "2.0.0"
-description = "Modern Hibernate/JPA utility library for Java 24+"
+version = "3.0.0"
+description = "Modern Hibernate/JPA utility library for Java 17+"
 
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
 
@@ -34,6 +34,9 @@ dependencies {
     compileOnly("com.h2database:h2:2.4.240")
     compileOnly("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     compileOnly("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2")
+    compileOnly("org.hibernate.orm:hibernate-agroal")
+    compileOnly("io.agroal:agroal-pool:2.5")
+    compileOnly("org.hibernate.orm:hibernate-jcache")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.assertj:assertj-core:3.27.3")
@@ -44,15 +47,11 @@ dependencies {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.release.set(24)
-    options.compilerArgs.addAll(listOf(
-        "--enable-preview"
-    ))
+    options.release.set(17)
 }
 
 tasks.test {
     useJUnitPlatform()
-    jvmArgs("--enable-preview")
     testLogging {
         events("passed", "skipped", "failed")
         showStandardStreams = true
@@ -114,19 +113,20 @@ mavenPublishing {
 }
 
 // Configure signing - read from gradle.properties
-val signingKeyProp = project.findProperty("signingInMemoryKey") as String?
-val signingPasswordProp = project.findProperty("signingInMemoryKeyPassword") as String?
+// Supports both naming conventions: signingKey/signing.password and signingInMemoryKey/signingInMemoryKeyPassword
+val signingKeyProp = (project.findProperty("signingInMemoryKey") ?: project.findProperty("signingKey")) as String?
+val signingPasswordProp = (project.findProperty("signingInMemoryKeyPassword") ?: project.findProperty("signing.password")) as String?
 
 signing {
-    isRequired = signingKeyProp != null && signingPasswordProp != null
-    
-    if (signingKeyProp != null && signingPasswordProp != null) {
+    isRequired = !signingKeyProp.isNullOrBlank() && !signingPasswordProp.isNullOrBlank()
+
+    if (!signingKeyProp.isNullOrBlank() && !signingPasswordProp.isNullOrBlank()) {
         useInMemoryPgpKeys(signingKeyProp, signingPasswordProp)
     }
 }
 
 afterEvaluate {
-    if (signingKeyProp != null && signingPasswordProp != null) {
+    if (!signingKeyProp.isNullOrBlank() && !signingPasswordProp.isNullOrBlank()) {
         publishing {
             publications.withType<MavenPublication> {
                 signing.sign(this)
