@@ -505,7 +505,18 @@ Supports: `equal`, `notEqual`, `like`, `in`, `isNull`, `isNotNull`, `greaterThan
 
 ## Caching
 
-Extend `AbstractCachedRepository` for dual-layer Caffeine caching (by ID and by custom key):
+Extend `AbstractCachedRepository` for dual-layer Caffeine caching (by ID and by custom key). The cache uses industry-standard patterns: cache-aside reads, write-through mutations, thundering herd protection, and optional stale-while-revalidate.
+
+### How It Works
+
+| Pattern | What Happens |
+|---|---|
+| **Cache-Aside** (reads) | Check cache first. On miss, load from DB and populate cache. Concurrent misses for the same key are coalesced into a single DB query (thundering herd protection). |
+| **Write-Through** (mutations) | Every create/update/save writes to DB first, then updates the cache. Deletes evict before the DB write. |
+| **TTL Jitter** | Expiration times include random jitter (default 10% of TTL) to prevent mass expiry stampedes after bulk preload. |
+| **Stale-While-Revalidate** (optional) | When `refreshAfterWrite` is set, expired entries serve stale data immediately while reloading in the background. Users never block on revalidation. |
+
+### Basic Setup
 
 ```java
 public class PlayerRepository extends AbstractCachedRepository<PlayerData, UUID, String> {
@@ -521,11 +532,26 @@ public class PlayerRepository extends AbstractCachedRepository<PlayerData, UUID,
 }
 ```
 
+### With Stale-While-Revalidate
+
+For high-traffic lookups where slight staleness is acceptable (player profiles, leaderboards):
+
 ```java
-// Cache lookups
-repo.findByKey("alice");                                            // memory only
-repo.findByKey("username", "alice");                                // DB fallback
-repo.getOrCreate("username", "alice", k -> new PlayerData(uuid, k));// get or create
+CacheConfig.builder()
+    .expiration(Duration.ofMinutes(30))
+    .refreshAfterWrite(Duration.ofMinutes(25))  // after 25min, serve stale + reload async
+    .maxSize(5000)
+    .jitterPercent(10)  // TTL varies by +/-10% to prevent mass expiry
+    .build()
+```
+
+### Cache Operations
+
+```java
+// Lookups (thundering herd safe)
+repo.findByKey("alice");                                             // memory only
+repo.findByKey("username", "alice");                                 // DB fallback
+repo.getOrCreate("username", "alice", k -> new PlayerData(uuid, k)); // get or create
 
 // Eviction
 repo.evict(player);
@@ -534,12 +560,25 @@ repo.evictByKey("alice");
 repo.evictAll();
 
 // Preloading (warm cache on startup)
-repo.preloadAsync();
+repo.preloadAsync();       // load all (small tables)
+repo.preloadAsync(1000);   // load first 1000 (large tables)
 
-// Stats
+// Monitoring
+repo.logCacheStats();      // logs hit rate, misses, evictions, size
 CacheStats stats = repo.getKeyCacheStats();
 long size = repo.getCacheSize();
 ```
+
+### Cache Contract
+
+Before using caching, consider these questions for your use case:
+
+| Question | Default Behavior |
+|---|---|
+| **Staleness window?** | Configurable TTL (default 30 min). Data may be stale up to this duration. |
+| **Who invalidates?** | Automatic on all mutation paths (create, update, save, delete, batch variants). |
+| **Cold start?** | Call `preload()` or `preload(limit)` in `onEnable()`. Cache populates on first access otherwise. |
+| **Wrong data consequence?** | For balances/permissions, use short TTL or skip cache. For display names/stats, longer TTL is fine. |
 
 All mutations (create, update, save, delete) automatically maintain cache consistency.
 
@@ -859,4 +898,4 @@ de.jexcellence.jehibernate
 
 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 
-Copyright 2024 JExcellence
+Copyright 2026 JExcellence
