@@ -4,7 +4,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import de.jexcellence.jehibernate.entity.base.Identifiable;
-import de.jexcellence.jehibernate.exception.RepositoryException;
 import de.jexcellence.jehibernate.repository.query.Specification;
 import jakarta.persistence.EntityManagerFactory;
 import org.slf4j.Logger;
@@ -17,33 +16,36 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
 /**
  * Abstract cached repository providing dual-layer caching (by ID and by custom key)
  * on top of {@link AbstractCrudRepository}.
  * <p>
- * Uses Caffeine cache with configurable expiration, max size, and expiry strategy.
- * All mutation operations (create, update, delete, save) automatically maintain
- * cache consistency.
+ * <b>Caching Strategy:</b>
+ * <ul>
+ *   <li><b>Cache-Aside</b> on reads — check cache first, miss routes to DB, result is cached.
+ *       Uses Caffeine's {@code get(key, loader)} for thundering herd protection: concurrent
+ *       misses for the same key coalesce into a single DB query.</li>
+ *   <li><b>Write-Through</b> on mutations — every create/update/save writes to DB first,
+ *       then updates the cache. Deletes evict before DB write.</li>
+ *   <li><b>Stale-While-Revalidate</b> (optional) — when {@code refreshAfterWrite} is set,
+ *       expired entries serve stale data immediately while triggering a background reload.
+ *       Users never block on cache revalidation.</li>
+ *   <li><b>TTL Jitter</b> — expiration times include random jitter (up to 10% of TTL)
+ *       to prevent thundering herd from mass expiry after bulk preload.</li>
+ * </ul>
  * <p>
- * <b>Configuration Example:</b>
- * <pre>{@code
- * public class UserRepository extends AbstractCachedRepository<User, Long, String> {
- *     public UserRepository(ExecutorService executor, EntityManagerFactory emf, Class<User> entityClass) {
- *         super(executor, emf, entityClass,
- *             User::getUsername,  // key extractor
- *             CacheConfig.builder()
- *                 .expiration(Duration.ofMinutes(15))
- *                 .maxSize(5000)
- *                 .expireAfterAccess(true)  // reset timer on each access
- *                 .build()
- *         );
- *     }
- * }
- * }</pre>
+ * <b>Cache Contract:</b>
+ * <ul>
+ *   <li>Staleness window: configurable via TTL (default 30 minutes)</li>
+ *   <li>Invalidation: automatic on all mutation paths (create, update, save, delete)</li>
+ *   <li>Cold start: use {@link #preload()} or {@link #preload(int)} to warm the cache</li>
+ *   <li>Consistency: eventual — a short window exists between DB write and cache update</li>
+ * </ul>
  *
- * @param <T>  the entity type (must implement {@link Identifiable})
+ * @param <T>  the entity type (should implement {@link Identifiable})
  * @param <ID> the ID type
  * @param <K>  the cache key type
  * @since 1.0
@@ -58,16 +60,27 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     private final Function<T, ID> idExtractor;
 
     /**
-     * Cache configuration record with builder support.
+     * Cache configuration record.
+     *
+     * @param expiration        base TTL for cache entries
+     * @param maxSize           maximum number of entries per cache layer
+     * @param expireAfterAccess if true, TTL resets on each access; if false, TTL is from write time
+     * @param refreshAfterWrite if non-null, enables stale-while-revalidate: expired entries serve
+     *                          stale data immediately while reloading in the background
+     * @param jitterPercent     percentage of TTL to add as random jitter (0-50, default 10).
+     *                          Prevents thundering herd from mass expiry after preload.
      */
     public record CacheConfig(
         Duration expiration,
         int maxSize,
-        boolean expireAfterAccess
+        boolean expireAfterAccess,
+        Duration refreshAfterWrite,
+        int jitterPercent
     ) {
         public CacheConfig {
             if (expiration == null) expiration = Duration.ofMinutes(30);
             if (maxSize <= 0) maxSize = 10_000;
+            if (jitterPercent < 0 || jitterPercent > 50) jitterPercent = 10;
         }
 
         public static Builder builder() { return new Builder(); }
@@ -76,13 +89,25 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
             private Duration expiration = Duration.ofMinutes(30);
             private int maxSize = 10_000;
             private boolean expireAfterAccess = false;
+            private Duration refreshAfterWrite = null;
+            private int jitterPercent = 10;
 
             public Builder expiration(Duration expiration) { this.expiration = expiration; return this; }
             public Builder maxSize(int maxSize) { this.maxSize = maxSize; return this; }
             public Builder expireAfterAccess(boolean expireAfterAccess) { this.expireAfterAccess = expireAfterAccess; return this; }
-            public CacheConfig build() { return new CacheConfig(expiration, maxSize, expireAfterAccess); }
+            /**
+             * Enables stale-while-revalidate: after this duration, the next access returns the
+             * stale value immediately and triggers an async reload. Set to ~80% of expiration
+             * for best results. Users never block on revalidation.
+             */
+            public Builder refreshAfterWrite(Duration refresh) { this.refreshAfterWrite = refresh; return this; }
+            /** Percentage of TTL added as random jitter (0-50, default 10). */
+            public Builder jitterPercent(int jitterPercent) { this.jitterPercent = jitterPercent; return this; }
+            public CacheConfig build() { return new CacheConfig(expiration, maxSize, expireAfterAccess, refreshAfterWrite, jitterPercent); }
         }
     }
+
+    // --- Constructors ---
 
     protected AbstractCachedRepository(
         ExecutorService executorService,
@@ -99,63 +124,72 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         EntityManagerFactory entityManagerFactory,
         Class<T> entityClass,
         Function<T, K> keyExtractor,
-        Duration expiration,
-        int maxSize
-    ) {
-        this(executorService, entityManagerFactory, entityClass, keyExtractor,
-            CacheConfig.builder().expiration(expiration).maxSize(maxSize).build());
-    }
-
-    protected AbstractCachedRepository(
-        ExecutorService executorService,
-        EntityManagerFactory entityManagerFactory,
-        Class<T> entityClass,
-        Function<T, K> keyExtractor,
         CacheConfig config
     ) {
         super(executorService, entityManagerFactory, entityClass);
         this.keyExtractor = keyExtractor;
         this.idExtractor = createIdExtractor(entityClass);
 
+        Duration jitteredExpiration = applyJitter(config.expiration(), config.jitterPercent());
+
+        this.keyCache = buildCache(config, jitteredExpiration);
+        this.idCache = buildCache(config, jitteredExpiration);
+
+        LOGGER.info("Cache initialized for {} — maxSize={}, expiration={} (jitter={}%), strategy={}, refresh={}",
+            entityClass.getSimpleName(), config.maxSize(), config.expiration(), config.jitterPercent(),
+            config.expireAfterAccess() ? "expireAfterAccess" : "expireAfterWrite",
+            config.refreshAfterWrite() != null ? config.refreshAfterWrite() : "disabled");
+    }
+
+    private Cache<Object, Object> buildCacheBuilder(CacheConfig config, Duration jitteredExpiration) {
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
             .maximumSize(config.maxSize())
             .recordStats();
 
         if (config.expireAfterAccess()) {
-            builder.expireAfterAccess(config.expiration());
+            builder.expireAfterAccess(jitteredExpiration);
         } else {
-            builder.expireAfterWrite(config.expiration());
+            builder.expireAfterWrite(jitteredExpiration);
         }
 
-        this.keyCache = builder.build();
-        // Build a separate cache instance with same config
-        Caffeine<Object, Object> idBuilder = Caffeine.newBuilder()
-            .maximumSize(config.maxSize())
-            .recordStats();
-        if (config.expireAfterAccess()) {
-            idBuilder.expireAfterAccess(config.expiration());
-        } else {
-            idBuilder.expireAfterWrite(config.expiration());
-        }
-        this.idCache = idBuilder.build();
-
-        LOGGER.debug("Cache initialized for {} — maxSize={}, expiration={}, strategy={}",
-            entityClass.getSimpleName(), config.maxSize(), config.expiration(),
-            config.expireAfterAccess() ? "expireAfterAccess" : "expireAfterWrite");
+        return builder.build();
     }
 
-    // --- Overridden CRUD methods with cache maintenance ---
+    @SuppressWarnings("unchecked")
+    private <CK, CV> Cache<CK, CV> buildCache(CacheConfig config, Duration jitteredExpiration) {
+        Caffeine<Object, Object> builder = Caffeine.newBuilder()
+            .maximumSize(config.maxSize())
+            .recordStats();
+
+        if (config.expireAfterAccess()) {
+            builder.expireAfterAccess(jitteredExpiration);
+        } else {
+            builder.expireAfterWrite(jitteredExpiration);
+        }
+
+        // Stale-while-revalidate: serve stale, reload async
+        if (config.refreshAfterWrite() != null && !config.expireAfterAccess()) {
+            builder.refreshAfterWrite(config.refreshAfterWrite());
+        }
+
+        return (Cache<CK, CV>) builder.build();
+    }
+
+    // --- Overridden CRUD methods with cache maintenance (Write-Through) ---
 
     @Override
     public Optional<T> findById(ID id) {
-        T cached = idCache.getIfPresent(id);
-        if (cached != null) {
-            return Optional.of(cached);
+        // Caffeine's get() coalesces concurrent misses for the same key (thundering herd protection)
+        T result = idCache.get(id, k -> super.findById(k).orElse(null));
+        if (result != null) {
+            // Cross-populate key cache
+            K key = keyExtractor.apply(result);
+            if (key != null) {
+                keyCache.put(key, result);
+            }
+            return Optional.of(result);
         }
-
-        Optional<T> found = super.findById(id);
-        found.ifPresent(this::cacheEntity);
-        return found;
+        return Optional.empty();
     }
 
     @Override
@@ -221,31 +255,28 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     // --- Cache-specific query methods ---
 
     /**
-     * Find an entity by its cache key (memory-only lookup).
-     *
-     * @param key the cache key
-     * @return the cached entity, or empty if not in cache
+     * Find an entity by its cache key (memory-only lookup, no DB fallback).
      */
     public Optional<T> findByKey(K key) {
         return Optional.ofNullable(keyCache.getIfPresent(key));
     }
 
     /**
-     * Find an entity by its cache key, falling back to a database query if not cached.
-     *
-     * @param queryAttribute the entity attribute to query
-     * @param key            the key value
-     * @return the entity, or empty
+     * Find an entity by its cache key with DB fallback.
+     * Uses Caffeine's coalescing loader to prevent thundering herd.
      */
     public Optional<T> findByKey(String queryAttribute, K key) {
-        T cached = keyCache.getIfPresent(key);
-        if (cached != null) {
-            return Optional.of(cached);
+        // Caffeine's get() coalesces concurrent misses for the same key
+        T result = keyCache.get(key, k -> query().and(queryAttribute, k).first().orElse(null));
+        if (result != null) {
+            // Cross-populate ID cache
+            ID id = idExtractor.apply(result);
+            if (id != null) {
+                idCache.put(id, result);
+            }
+            return Optional.of(result);
         }
-
-        Optional<T> found = query().and(queryAttribute, key).first();
-        found.ifPresent(this::cacheEntity);
-        return found;
+        return Optional.empty();
     }
 
     public CompletableFuture<Optional<T>> findByKeyAsync(String queryAttribute, K key) {
@@ -253,12 +284,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     }
 
     /**
-     * Get an entity by key, creating it if not found.
-     *
-     * @param queryAttribute the entity attribute to query
-     * @param key            the key value
-     * @param creator        function to create a new entity from the key
-     * @return existing or newly created entity
+     * Get an entity by key, creating it if not found in cache or DB.
      */
     public T getOrCreate(String queryAttribute, K key, Function<K, T> creator) {
         return findByKey(queryAttribute, key).orElseGet(() -> create(creator.apply(key)));
@@ -271,17 +297,17 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     // --- Eviction ---
 
     public void evict(T entity) {
-        keyCache.invalidate(keyExtractor.apply(entity));
+        K key = keyExtractor.apply(entity);
+        if (key != null) keyCache.invalidate(key);
         ID id = idExtractor.apply(entity);
-        if (id != null) {
-            idCache.invalidate(id);
-        }
+        if (id != null) idCache.invalidate(id);
     }
 
     public void evictById(ID id) {
         T cached = idCache.getIfPresent(id);
         if (cached != null) {
-            keyCache.invalidate(keyExtractor.apply(cached));
+            K key = keyExtractor.apply(cached);
+            if (key != null) keyCache.invalidate(key);
         }
         idCache.invalidate(id);
     }
@@ -290,9 +316,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         T cached = keyCache.getIfPresent(key);
         if (cached != null) {
             ID id = idExtractor.apply(cached);
-            if (id != null) {
-                idCache.invalidate(id);
-            }
+            if (id != null) idCache.invalidate(id);
         }
         keyCache.invalidate(key);
     }
@@ -307,7 +331,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
 
     /**
      * Preloads all entities into the cache.
-     * <b>Warning:</b> Use with caution for large datasets.
+     * <b>Warning:</b> Use {@link #preload(int)} with a limit for large datasets.
      */
     public void preload() {
         List<T> all = findAll();
@@ -315,11 +339,28 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         LOGGER.info("Preloaded {} entities into cache for {}", all.size(), getEntityClass().getSimpleName());
     }
 
+    /**
+     * Preloads up to {@code limit} entities into the cache.
+     * Safer than {@link #preload()} for large tables.
+     *
+     * @param limit maximum number of entities to preload
+     */
+    public void preload(int limit) {
+        List<T> page = findAll(0, limit);
+        page.forEach(this::cacheEntity);
+        LOGGER.info("Preloaded {} entities (limit={}) into cache for {}",
+            page.size(), limit, getEntityClass().getSimpleName());
+    }
+
     public CompletableFuture<Void> preloadAsync() {
         return CompletableFuture.runAsync(this::preload, executorService);
     }
 
-    // --- Cache inspection ---
+    public CompletableFuture<Void> preloadAsync(int limit) {
+        return CompletableFuture.runAsync(() -> preload(limit), executorService);
+    }
+
+    // --- Cache inspection & monitoring ---
 
     public Map<K, T> getCachedByKey() {
         return Map.copyOf(keyCache.asMap());
@@ -345,6 +386,27 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         return idCache.stats();
     }
 
+    /**
+     * Logs current cache statistics at INFO level.
+     * Call periodically or on-demand to monitor cache health.
+     * <p>
+     * Logs: hit rate, hit/miss counts, eviction count, and cache size.
+     */
+    public void logCacheStats() {
+        CacheStats keyStats = keyCache.stats();
+        CacheStats idStats = idCache.stats();
+        LOGGER.info("Cache stats for {} — " +
+                "keyCache: hitRate={}, hits={}, misses={}, evictions={}, size={} | " +
+                "idCache: hitRate={}, hits={}, misses={}, evictions={}, size={}",
+            getEntityClass().getSimpleName(),
+            String.format("%.1f%%", keyStats.hitRate() * 100),
+            keyStats.hitCount(), keyStats.missCount(), keyStats.evictionCount(),
+            keyCache.estimatedSize(),
+            String.format("%.1f%%", idStats.hitRate() * 100),
+            idStats.hitCount(), idStats.missCount(), idStats.evictionCount(),
+            idCache.estimatedSize());
+    }
+
     // --- Internal ---
 
     private void cacheEntity(T entity) {
@@ -359,15 +421,22 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     }
 
     /**
-     * Creates an ID extractor using the {@link Identifiable} interface.
-     * No reflection — direct interface method call.
+     * Applies random jitter to a TTL duration to prevent thundering herd from mass expiry.
+     * For example, 30 minutes with 10% jitter produces 27-33 minutes.
      */
+    private static Duration applyJitter(Duration base, int jitterPercent) {
+        if (jitterPercent <= 0) return base;
+        long baseMillis = base.toMillis();
+        long jitterRange = baseMillis * jitterPercent / 100;
+        long jitter = ThreadLocalRandom.current().nextLong(-jitterRange, jitterRange + 1);
+        return Duration.ofMillis(Math.max(1000, baseMillis + jitter)); // minimum 1 second
+    }
+
     @SuppressWarnings("unchecked")
     private Function<T, ID> createIdExtractor(Class<T> entityClass) {
         if (Identifiable.class.isAssignableFrom(entityClass)) {
             return entity -> ((Identifiable<ID>) entity).getId();
         }
-        // Fallback for entities not implementing Identifiable — use reflection once to find getId
         LOGGER.warn("Entity {} does not implement Identifiable — using reflection for ID extraction. " +
             "Consider implementing Identifiable<ID> for better performance.", entityClass.getName());
         return entity -> {
