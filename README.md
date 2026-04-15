@@ -61,7 +61,7 @@ JEHibernate wraps Hibernate ORM with a clean, fluent API that eliminates 65%+ of
 
 ```kotlin
 dependencies {
-    implementation("de.jexcellence.hibernate:JEHibernate:3.0.0")
+    implementation("de.jexcellence.hibernate:JEHibernate:3.0.1")
 
     // Pick your database driver
     runtimeOnly("com.h2database:h2:2.4.240")         // H2 (embedded, dev/testing)
@@ -74,7 +74,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'de.jexcellence.hibernate:JEHibernate:3.0.0'
+    implementation 'de.jexcellence.hibernate:JEHibernate:3.0.1'
     runtimeOnly 'com.h2database:h2:2.4.240'
 }
 ```
@@ -85,7 +85,7 @@ dependencies {
 <dependency>
     <groupId>de.jexcellence.hibernate</groupId>
     <artifactId>JEHibernate</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
 </dependency>
 ```
 
