@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "de.jexcellence.hibernate"
-version = "3.0.1"
+version = "3.0.3"
 description = "Modern Hibernate/JPA utility library for Java 17+"
 
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
@@ -23,10 +23,13 @@ java {
 dependencies {
     implementation(platform("org.hibernate.orm:hibernate-platform:7.1.4.Final"))
     implementation("org.hibernate.orm:hibernate-core")
+    implementation("jakarta.persistence:jakarta.persistence-api")
     implementation("jakarta.transaction:jakarta.transaction-api")
     implementation("org.reflections:reflections:0.10.2")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.0")
-    implementation("org.slf4j:slf4j-api:2.0.16")
+
+    // SLF4J API — provided by the runtime environment (Paper/Spigot include it)
+    compileOnly("org.slf4j:slf4j-api:2.0.16")
 
     compileOnly("org.jetbrains:annotations:26.0.1")
     compileOnly("org.postgresql:postgresql:42.7.7")
@@ -112,8 +115,6 @@ mavenPublishing {
     }
 }
 
-// Configure signing - read from gradle.properties
-// Supports both naming conventions: signingKey/signing.password and signingInMemoryKey/signingInMemoryKeyPassword
 val signingKeyProp = (project.findProperty("signingInMemoryKey") ?: project.findProperty("signingKey")) as String?
 val signingPasswordProp = (project.findProperty("signingInMemoryKeyPassword") ?: project.findProperty("signing.password")) as String?
 

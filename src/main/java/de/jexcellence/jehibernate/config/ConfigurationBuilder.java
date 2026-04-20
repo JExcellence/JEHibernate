@@ -1,23 +1,20 @@
 package de.jexcellence.jehibernate.config;
 
 import de.jexcellence.jehibernate.exception.ConfigurationException;
+import de.jexcellence.jehibernate.exception.JEHibernateException;
 import de.jexcellence.jehibernate.naming.NamingStrategy;
 import de.jexcellence.jehibernate.naming.SnakeCaseStrategy;
 import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.SharedCacheMode;
-import jakarta.persistence.ValidationMode;
-import jakarta.persistence.spi.ClassTransformer;
-import jakarta.persistence.spi.PersistenceUnitInfo;
-import jakarta.persistence.spi.PersistenceUnitTransactionType;
+import org.hibernate.boot.Metadata;
+import org.hibernate.boot.MetadataSources;
+import org.hibernate.boot.registry.BootstrapServiceRegistry;
+import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
+import org.hibernate.boot.registry.StandardServiceRegistry;
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.jpa.HibernatePersistenceProvider;
 
-import javax.sql.DataSource;
-import java.net.URL;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -27,6 +24,22 @@ import java.util.Set;
  * <p>
  * Provides sensible defaults for batch processing, connection management, and performance
  * while allowing full customization of Hibernate properties.
+ * <p>
+ * <b>Why native Hibernate bootstrapping?</b>
+ * Going through {@code HibernatePersistenceProvider.createContainerEntityManagerFactory} has
+ * the physical naming strategy pass through {@code StrategySelector.resolveStrategy()}.  When
+ * JEHibernate is downloaded at runtime by JEDependency and injected into the plugin classloader
+ * while Hibernate core lives in a separate classloader, {@code PhysicalNamingStrategy.class} from
+ * Hibernate's classloader and the same interface as seen from the plugin classloader are two
+ * distinct {@code Class} objects.  The {@code instanceof} check in {@code StrategySelector}
+ * therefore fails, the selector falls back to {@code value.getClass().getName()}, and Hibernate
+ * raises {@code StrategySelectionException: Unable to resolve name [SnakeCaseStrategy]}.
+ * <p>
+ * Using {@code MetadataBuilder.applyPhysicalNamingStrategy(instance)} bypasses
+ * {@code StrategySelector} entirely — the instance is stored directly without any name or type
+ * resolution step.  Registering the plugin classloader with {@code BootstrapServiceRegistryBuilder}
+ * additionally ensures that Hibernate's aggregated {@code ClassLoaderService} can find all
+ * plugin-side classes (entities, converters, listeners) during metadata processing.
  * <p>
  * <b>Basic Example:</b>
  * <pre>{@code
@@ -231,21 +244,85 @@ public final class ConfigurationBuilder {
         }
 
         props.forEach((key, value) -> {
-            if (key.toString().startsWith("hibernate.")) {
-                properties.put(key.toString(), value);
+            String k = key.toString();
+            // Pass through all hibernate.* properties except physical_naming_strategy —
+            // that is always set as a live instance via MetadataBuilder to avoid
+            // StrategySelector classloader resolution issues (see class-level Javadoc).
+            if (k.startsWith("hibernate.") && !k.equals(AvailableSettings.PHYSICAL_NAMING_STRATEGY)) {
+                properties.put(k, value);
             }
         });
 
         return this;
     }
 
+    /**
+     * Builds the {@link EntityManagerFactory} using Hibernate's native bootstrap API.
+     * <p>
+     * The plugin classloader is registered with {@link BootstrapServiceRegistryBuilder} so
+     * Hibernate's aggregated {@code ClassLoaderService} can find all plugin-side types.
+     * The physical naming strategy is applied via
+     * {@code MetadataBuilder.applyPhysicalNamingStrategy(instance)}, which stores the instance
+     * directly and bypasses {@code StrategySelector} entirely.
+     *
+     * @return a fully initialised {@link EntityManagerFactory} (backed by a Hibernate
+     *         {@code SessionFactory}, which implements that interface)
+     * @throws ConfigurationException   if no database configuration has been set
+     * @throws JEHibernateException     if Hibernate bootstrapping fails
+     */
     public EntityManagerFactory build() {
         validate();
+
+        // The defining classloader of ConfigurationBuilder is the plugin classloader — it can
+        // see the plugin JAR (entities, converters, naming strategies) as well as the
+        // JEDependency-injected Hibernate JARs. Passing it to BootstrapServiceRegistryBuilder
+        // registers it with Hibernate's AggregatedClassLoader so that all service lookups,
+        // proxy generation, and annotation scanning can find plugin-side classes.
+        final ClassLoader pluginClassLoader = ConfigurationBuilder.class.getClassLoader();
+
         Map<String, Object> config = buildConfiguration();
-        PersistenceUnitInfo persistenceUnit = createPersistenceUnit();
-        return new HibernatePersistenceProvider()
-            .createContainerEntityManagerFactory(persistenceUnit, config);
+
+        BootstrapServiceRegistry bsr = new BootstrapServiceRegistryBuilder()
+            .applyClassLoader(pluginClassLoader)
+            .build();
+
+        try {
+            StandardServiceRegistry ssr = new StandardServiceRegistryBuilder(bsr)
+                .applySettings(config)
+                .build();
+
+            try {
+                MetadataSources sources = new MetadataSources(ssr);
+                entityClasses.forEach(sources::addAnnotatedClass);
+
+                // applyPhysicalNamingStrategy stores the instance in a field on
+                // MetadataBuilderImpl — no StrategySelector, no class-name resolution,
+                // no classloader lookup.  This is the canonical fix for the
+                // StrategySelectionException that occurs when the strategy class is visible
+                // to the plugin classloader but not to Hibernate's internal ClassLoaderService.
+                Metadata metadata = sources.getMetadataBuilder()
+                    .applyPhysicalNamingStrategy(namingStrategy)
+                    .build();
+
+                // SessionFactory extends EntityManagerFactory in Hibernate 7 — safe upcast.
+                return metadata.getSessionFactoryBuilder().build();
+
+            } catch (Exception e) {
+                // Destroy SSR (and its child resources) on failure so connections are released.
+                StandardServiceRegistryBuilder.destroy(ssr);
+                if (e instanceof RuntimeException re) throw re;
+                throw new JEHibernateException("Failed to build EntityManagerFactory", e);
+            }
+        } catch (RuntimeException e) {
+            // BSR holds no DB resources but close it for tidiness on any build failure.
+            bsr.close();
+            throw e;
+        }
     }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
 
     private void validate() {
         if (databaseConfig == null) {
@@ -253,9 +330,20 @@ public final class ConfigurationBuilder {
         }
     }
 
+    /**
+     * Assembles the settings map passed to {@link StandardServiceRegistryBuilder}.
+     * <p>
+     * {@code PHYSICAL_NAMING_STRATEGY} is intentionally omitted — it is applied as a live
+     * instance via {@code MetadataBuilder.applyPhysicalNamingStrategy()} in {@link #build()}.
+     * Including a string or instance value here would route through {@code StrategySelector}
+     * and trigger the classloader-mismatch failure this class is designed to prevent.
+     */
     private Map<String, Object> buildConfiguration() {
         Map<String, Object> config = new HashMap<>(properties);
 
+        // JDBC connection — Hibernate 7 processes jakarta.persistence.jdbc.* in both the
+        // JPA provider path and the native StandardServiceRegistry path (DriverManager
+        // connection provider tries the jakarta key first, then hibernate.connection.*).
         config.put(AvailableSettings.JAKARTA_JDBC_URL, databaseConfig.url());
         config.put(AvailableSettings.JAKARTA_JDBC_DRIVER, databaseConfig.driver());
         config.put(AvailableSettings.DIALECT, databaseConfig.dialect());
@@ -267,9 +355,8 @@ public final class ConfigurationBuilder {
             config.put(AvailableSettings.JAKARTA_JDBC_PASSWORD, databaseConfig.password());
         }
 
-        config.put(AvailableSettings.PHYSICAL_NAMING_STRATEGY, namingStrategy.getClass().getName());
-
-        // Sensible defaults — user-provided values take precedence
+        // Sensible defaults — caller-supplied values already in `properties` take precedence
+        // because we copied them into `config` above before these putIfAbsent calls.
         config.putIfAbsent(AvailableSettings.HBM2DDL_AUTO, "update");
         config.putIfAbsent(AvailableSettings.SHOW_SQL, false);
         config.putIfAbsent(AvailableSettings.STATEMENT_BATCH_SIZE, 25);
@@ -280,105 +367,5 @@ public final class ConfigurationBuilder {
         config.putIfAbsent(AvailableSettings.CONNECTION_PROVIDER_DISABLES_AUTOCOMMIT, true);
 
         return config;
-    }
-
-    private PersistenceUnitInfo createPersistenceUnit() {
-        return new PersistenceUnitInfo() {
-            @Override
-            public String getPersistenceUnitName() {
-                return "JEHibernatePersistenceUnit";
-            }
-
-            @Override
-            public String getPersistenceProviderClassName() {
-                return HibernatePersistenceProvider.class.getName();
-            }
-
-            @Override
-            public String getScopeAnnotationName() {
-                return null;
-            }
-
-            @Override
-            public List<String> getQualifierAnnotationNames() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public PersistenceUnitTransactionType getTransactionType() {
-                return PersistenceUnitTransactionType.RESOURCE_LOCAL;
-            }
-
-            @Override
-            public DataSource getJtaDataSource() {
-                return null;
-            }
-
-            @Override
-            public DataSource getNonJtaDataSource() {
-                return null;
-            }
-
-            @Override
-            public List<String> getMappingFileNames() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public List<URL> getJarFileUrls() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public URL getPersistenceUnitRootUrl() {
-                return null;
-            }
-
-            @Override
-            public List<String> getManagedClassNames() {
-                return entityClasses.stream()
-                    .map(Class::getName)
-                    .toList();
-            }
-
-            @Override
-            public boolean excludeUnlistedClasses() {
-                return !entityClasses.isEmpty();
-            }
-
-            @Override
-            public SharedCacheMode getSharedCacheMode() {
-                return SharedCacheMode.UNSPECIFIED;
-            }
-
-            @Override
-            public ValidationMode getValidationMode() {
-                return ValidationMode.AUTO;
-            }
-
-            @Override
-            public Properties getProperties() {
-                return new Properties();
-            }
-
-            @Override
-            public String getPersistenceXMLSchemaVersion() {
-                return "3.1";
-            }
-
-            @Override
-            public ClassLoader getClassLoader() {
-                return Thread.currentThread().getContextClassLoader();
-            }
-
-            @Override
-            public void addTransformer(ClassTransformer transformer) {
-            }
-
-            @Override
-            public ClassLoader getNewTempClassLoader() {
-                return Thread.currentThread().getContextClassLoader();
-            }
-        };
     }
 }

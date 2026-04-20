@@ -14,7 +14,22 @@
       "Bash(jar tf:*)",
       "Bash(\"/c/Users/Privat/.jdks/openjdk-24/bin/jar\" tf:*)",
       "Bash(java -version)",
-      "WebFetch(domain:dev.to)"
+      "WebFetch(domain:dev.to)",
+      "Bash(\"/c/Users/Privat/.gradle/jdks/adoptium-24/jdk-24.0.2+12/bin/jar\" tf:*)",
+      "Read(//c/Users/Privat/IdeaProjects/**)",
+      "WebFetch(domain:repo1.maven.org)",
+      "WebFetch(domain:search.maven.org)",
+      "WebFetch(domain:central.maven.org)",
+      "WebFetch(domain:repo.maven.apache.org)",
+      "WebFetch(domain:mvnrepository.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/org/hibernate/orm/hibernate-core/7.1.4.Final/hibernate-core-7.1.4.Final.pom\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/org/hibernate/models/hibernate-models/1.0.1/hibernate-models-1.0.1.pom\")",
+      "Bash(curl -s \"https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-runtime/4.0.5/jaxb-runtime-4.0.5.pom\")",
+      "Bash(grep -v \"build/\" find \"C:/Users/Privat/IdeaProjects/RaindropCentral\" -path \"*/dependency/*.yml\")",
+      "Bash(grep -v \"build/\" find \"C:/Users/Privat/IdeaProjects/RaindropPlugins\" -path \"*/dependency/*.yml\")",
+      "Bash(xargs grep *)"
     ]
   }
 }
