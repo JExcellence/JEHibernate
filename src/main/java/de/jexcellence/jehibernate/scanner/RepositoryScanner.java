@@ -5,12 +5,14 @@ import de.jexcellence.jehibernate.repository.manager.RepositoryRegistry;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -74,32 +76,57 @@ public final class RepositoryScanner {
             LOGGER.warn("No base packages specified for repository scanning");
             return Map.of();
         }
-        
+
         LOGGER.info("Scanning for repositories in packages: {}", Arrays.toString(basePackages));
-        
-        Map<Class<?>, Class<?>> repositories = new HashMap<>();
-        
-        for (String basePackage : basePackages) {
-            Reflections reflections = new Reflections(
-                new ConfigurationBuilder()
-                    .forPackage(basePackage)
+
+        // Use the defining classloader of RepositoryScanner — this is the plugin classloader
+        // that has the repository classes on its classpath.  The thread context classloader on
+        // ForkJoinPool workers points to the JEDependency library classloader (downloaded JARs
+        // only) which does NOT contain the plugin JAR and therefore cannot see the repo classes.
+        final ClassLoader pluginClassLoader = RepositoryScanner.class.getClassLoader();
+
+        // Obtain the URL of the JAR that contains RepositoryScanner itself.  Since JEHibernate's
+        // thin JAR is bundled (via implementation dep) into the plugin's shadow JAR, this URL
+        // points at the shadow JAR — which also contains the repository classes.  Providing the
+        // URL explicitly is more reliable than letting Reflections enumerate classloader URLs,
+        // because Paper's plugin classloader is not a URLClassLoader and getResources() may
+        // return nothing.
+        URL pluginJarUrl = null;
+        try {
+            pluginJarUrl = RepositoryScanner.class.getProtectionDomain().getCodeSource().getLocation();
+        } catch (final Exception ignored) {
+            LOGGER.warn("Could not resolve plugin JAR URL via ProtectionDomain; falling back to classloader enumeration");
+        }
+
+        final Map<Class<?>, Class<?>> repositories = new HashMap<>();
+
+        for (final String basePackage : basePackages) {
+            final ConfigurationBuilder config = new ConfigurationBuilder()
+                    .addClassLoaders(pluginClassLoader)
                     .setScanners(Scanners.SubTypes)
-            );
-            
-            Set<Class<? extends Repository>> repoClasses = reflections.getSubTypesOf(Repository.class);
-            
-            for (Class<?> repoClass : repoClasses) {
+                    .filterInputsBy(new FilterBuilder().includePackage(basePackage));
+
+            if (pluginJarUrl != null) {
+                config.addUrls(pluginJarUrl);
+            } else {
+                config.forPackage(basePackage, pluginClassLoader);
+            }
+
+            final Reflections reflections = new Reflections(config);
+            final Set<Class<? extends Repository>> repoClasses = reflections.getSubTypesOf(Repository.class);
+
+            for (final Class<?> repoClass : repoClasses) {
                 if (isConcreteRepository(repoClass)) {
-                    Class<?> entityClass = extractEntityClass(repoClass);
+                    final Class<?> entityClass = extractEntityClass(repoClass);
                     if (entityClass != null) {
                         repositories.put(repoClass, entityClass);
-                        LOGGER.debug("Found repository: {} for entity: {}", 
+                        LOGGER.debug("Found repository: {} for entity: {}",
                             repoClass.getSimpleName(), entityClass.getSimpleName());
                     }
                 }
             }
         }
-        
+
         LOGGER.info("Found {} repositories", repositories.size());
         return repositories;
     }
