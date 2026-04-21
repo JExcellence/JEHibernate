@@ -171,6 +171,9 @@ public final class OptimisticLockRetry {
     }
 
     private static String extractCauseType(Throwable throwable) {
+        if (throwable == null) {
+            return "UnknownException";
+        }
         Throwable current = throwable;
         while (current != null) {
             if (current instanceof OptimisticLockException

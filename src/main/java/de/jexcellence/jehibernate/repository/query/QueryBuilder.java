@@ -119,7 +119,7 @@ public final class QueryBuilder<T> {
     }
 
     public QueryBuilder<T> and(String field, Object value) {
-        return where(Specifications.equal(field, value));
+        return where(Specifications.equalTo(field, value));
     }
 
     public QueryBuilder<T> like(String field, String pattern) {
@@ -159,7 +159,7 @@ public final class QueryBuilder<T> {
     }
 
     public QueryBuilder<T> notEqual(String field, Object value) {
-        return where(Specifications.notEqual(field, value));
+        return where(Specifications.notEqualTo(field, value));
     }
 
     // --- OR conditions ---
@@ -173,7 +173,7 @@ public final class QueryBuilder<T> {
      * @return this builder for chaining
      */
     public QueryBuilder<T> or(String field, Object value) {
-        return orWhere(Specifications.equal(field, value));
+        return orWhere(Specifications.equalTo(field, value));
     }
 
     /**

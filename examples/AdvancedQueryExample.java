@@ -32,6 +32,22 @@ class Order extends LongIdEntity {
     public void setStatus(String status) { this.status = status; }
     public double getAmount() { return amount; }
     public void setAmount(double amount) { this.amount = amount; }
+
+    /**
+     * Delegates to {@link de.jexcellence.jehibernate.entity.base.BaseEntity#equals(Object)},
+     * which compares by database ID (or by identity token for transient instances).
+     * Explicitly overridden here to satisfy static-analysis tools that require
+     * subclasses adding fields to declare equals/hashCode.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 class OrderRepository extends AbstractCrudRepository<Order, Long> {
@@ -83,7 +99,7 @@ public class AdvancedQueryExample {
             
             System.out.println("\n=== Specification Examples ===");
             
-            var completedSpec = Specifications.<Order>equal("status", "COMPLETED")
+            var completedSpec = Specifications.<Order>equalTo("status", "COMPLETED")
                 .and(Specifications.greaterThan("amount", 100.0));
             
             var completedOrders = orderRepo.findAll(completedSpec);
