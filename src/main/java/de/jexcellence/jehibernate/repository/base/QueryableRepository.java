@@ -91,8 +91,8 @@ public non-sealed interface QueryableRepository<T, ID> extends AsyncRepository<T
      * <p>
      * <b>Example:</b>
      * <pre>{@code
-     * var spec = Specifications.<User>equal("username", "alice")
-     *     .and(Specifications.equal("active", true));
+     * var spec = Specifications.<User>equalTo("username", "alice")
+     *     .and(Specifications.equalTo("active", true));
      * Optional<User> user = userRepo.findOne(spec);
      * }</pre>
      *

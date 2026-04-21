@@ -141,20 +141,6 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
             config.refreshAfterWrite() != null ? config.refreshAfterWrite() : "disabled");
     }
 
-    private Cache<Object, Object> buildCacheBuilder(CacheConfig config, Duration jitteredExpiration) {
-        Caffeine<Object, Object> builder = Caffeine.newBuilder()
-            .maximumSize(config.maxSize())
-            .recordStats();
-
-        if (config.expireAfterAccess()) {
-            builder.expireAfterAccess(jitteredExpiration);
-        } else {
-            builder.expireAfterWrite(jitteredExpiration);
-        }
-
-        return builder.build();
-    }
-
     @SuppressWarnings("unchecked")
     private <CK, CV> Cache<CK, CV> buildCache(CacheConfig config, Duration jitteredExpiration) {
         Caffeine<Object, Object> builder = Caffeine.newBuilder()

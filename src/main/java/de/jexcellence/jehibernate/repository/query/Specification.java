@@ -18,14 +18,14 @@ import jakarta.persistence.criteria.Root;
  *     cb.equal(root.get("active"), true);
  * 
  * // Combined specifications
- * Specification<User> spec = Specifications.equal("active", true)
+ * Specification<User> spec = Specifications.equalTo("active", true)
  *     .and(Specifications.like("email", "%@example.com"))
  *     .and(Specifications.greaterThan("age", 18));
  * 
  * List<User> users = userRepository.findAll(spec);
  * 
  * // Negation
- * Specification<User> notDeleted = Specifications.equal("deleted", true).not();
+ * Specification<User> notDeleted = Specifications.equalTo("deleted", true).not();
  * }</pre>
  * 
  * @param <T> the entity type

@@ -14,10 +14,10 @@ import java.util.Collection;
  * <h2>Usage Example:</h2>
  * <pre>{@code
  * // Simple equality
- * Specification<User> activeSpec = Specifications.equal("active", true);
+ * Specification<User> activeSpec = Specifications.equalTo("active", true);
  * 
  * // Complex query with multiple conditions
- * Specification<User> spec = Specifications.equal("active", true)
+ * Specification<User> spec = Specifications.equalTo("active", true)
  *     .and(Specifications.like("email", "%@example.com"))
  *     .and(Specifications.greaterThan("age", 18))
  *     .and(Specifications.isNotNull("lastLogin"));
@@ -31,7 +31,7 @@ import java.util.Collection;
  * Specification<Product> categories = Specifications.in("category", List.of("Electronics", "Books"));
  * 
  * // Nested properties
- * Specification<Order> userCity = Specifications.equal("user.address.city", "New York");
+ * Specification<Order> userCity = Specifications.equalTo("user.address.city", "New York");
  * }</pre>
  * 
  * <h2>Supported Operations:</h2>
@@ -55,25 +55,31 @@ public final class Specifications {
     
     /**
      * Creates a specification for equality comparison.
-     * 
-     * @param <T> the entity type
+     *
+     * <p>Named {@code equalTo} (not {@code equal}) to avoid confusion with
+     * {@link Object#equals(Object)}, which this method does not override.
+     *
+     * @param <T>   the entity type
      * @param field the field name (supports nested properties with dot notation)
-     * @param value the value to compare
+     * @param value the expected value
      * @return a specification for the equality condition
      */
-    public static <T> Specification<T> equal(String field, Object value) {
+    public static <T> Specification<T> equalTo(String field, Object value) {
         return (root, query, cb) -> cb.equal(resolvePath(root, field), value);
     }
-    
+
     /**
      * Creates a specification for inequality comparison.
-     * 
-     * @param <T> the entity type
+     *
+     * <p>Named {@code notEqualTo} (not {@code notEqual}) for symmetry with
+     * {@link #equalTo(String, Object)}.
+     *
+     * @param <T>   the entity type
      * @param field the field name
      * @param value the value to compare
      * @return a specification for the inequality condition
      */
-    public static <T> Specification<T> notEqual(String field, Object value) {
+    public static <T> Specification<T> notEqualTo(String field, Object value) {
         return (root, query, cb) -> cb.notEqual(resolvePath(root, field), value);
     }
     
