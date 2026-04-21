@@ -301,7 +301,7 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
     public T createOrUpdate(T entity, Function<T, I> idExtractor) {
         return Optional.ofNullable(idExtractor.apply(entity))
             .flatMap(this::findById)
-            .map(_unused -> update(entity))
+            .map(existing -> update(entity))
             .orElseGet(() -> create(entity));
     }
     

@@ -185,6 +185,11 @@ public class BukkitPluginExample /* extends JavaPlugin */ {
     // === OPTION A: Load from properties file (recommended) ===
 
     public void onEnableWithProperties() {
+        // Intentionally empty: implement this method to load database configuration
+        // from a properties file using PropertyLoader and JEHibernate.builder()
+        // .configuration(cfg -> cfg.fromProperties(props)).build().
+        // See onEnableWithBuilder() for the programmatic equivalent.
+        throw new UnsupportedOperationException("onEnableWithProperties() is not yet implemented");
     }
 
     // === OPTION B: Programmatic config (for simple setups) ===
@@ -202,7 +207,7 @@ public class BukkitPluginExample /* extends JavaPlugin */ {
 
         playerRepo = jeHibernate.repositories().get(PlayerRepository.class);
         warpRepo = jeHibernate.repositories().get(WarpRepository.class);
-        EconomyService economyService = jeHibernate.repositories().createWithInjection(EconomyService.class);
+        jeHibernate.repositories().createWithInjection(EconomyService.class);
 
         playerRepo.preloadAsync();
     }
@@ -216,8 +221,6 @@ public class BukkitPluginExample /* extends JavaPlugin */ {
             .thenAccept(player -> {
                 player.setLastServer("lobby");
                 playerRepo.save(player);
-                // Bukkit.getScheduler().runTask(this, () ->
-                //     player.sendMessage("Welcome back, " + player.getUsername() + "!"));
             });
     }
 

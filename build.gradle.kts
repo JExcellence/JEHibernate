@@ -23,6 +23,7 @@ val postgresqlVersion         = "42.7.7"
 val mysqlVersion              = "9.3.0"
 val h2Version                 = "2.4.240"
 val jacksonVersion            = "2.18.2"
+val agroalVersion             = "2.5"
 val junitVersion              = "5.11.4"
 val assertjVersion            = "3.27.3"
 val mockitoVersion            = "5.15.2"
@@ -52,7 +53,7 @@ dependencies {
     compileOnly("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     compileOnly("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jacksonVersion")
     compileOnly("org.hibernate.orm:hibernate-agroal")
-    compileOnly("io.agroal:agroal-pool:2.5")
+    compileOnly("io.agroal:agroal-pool:$agroalVersion")
     compileOnly("org.hibernate.orm:hibernate-jcache")
 
     testImplementation("org.junit.jupiter:junit-jupiter:$junitVersion")
