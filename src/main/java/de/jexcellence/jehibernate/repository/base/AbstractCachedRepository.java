@@ -46,18 +46,18 @@ import java.util.function.Function;
  * </ul>
  *
  * @param <T>  the entity type (should implement {@link Identifiable})
- * @param <ID> the ID type
+ * @param <I>  the ID type
  * @param <K>  the cache key type
  * @since 1.0
  */
-public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRepository<T, ID> {
+public abstract class AbstractCachedRepository<T, I, K> extends AbstractCrudRepository<T, I> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractCachedRepository.class);
 
     private final Cache<K, T> keyCache;
-    private final Cache<ID, T> idCache;
+    private final Cache<I, T> idCache;
     private final Function<T, K> keyExtractor;
-    private final Function<T, ID> idExtractor;
+    private final Function<T, I> idExtractor;
 
     /**
      * Cache configuration record.
@@ -142,7 +142,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     }
 
     @SuppressWarnings("unchecked")
-    private <CK, CV> Cache<CK, CV> buildCache(CacheConfig config, Duration jitteredExpiration) {
+    private <C, V> Cache<C, V> buildCache(CacheConfig config, Duration jitteredExpiration) {
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
             .maximumSize(config.maxSize())
             .recordStats();
@@ -158,13 +158,13 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
             builder.refreshAfterWrite(config.refreshAfterWrite());
         }
 
-        return (Cache<CK, CV>) builder.build();
+        return (Cache<C, V>) builder.build();
     }
 
     // --- Overridden CRUD methods with cache maintenance (Write-Through) ---
 
     @Override
-    public Optional<T> findById(ID id) {
+    public Optional<T> findById(I id) {
         // Caffeine's get() coalesces concurrent misses for the same key (thundering herd protection)
         T result = idCache.get(id, k -> super.findById(k).orElse(null));
         if (result != null) {
@@ -221,7 +221,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     }
 
     @Override
-    public void delete(ID id) {
+    public void delete(I id) {
         evictById(id);
         super.delete(id);
     }
@@ -233,7 +233,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     }
 
     @Override
-    public void deleteAll(Collection<ID> ids) {
+    public void deleteAll(Collection<I> ids) {
         ids.forEach(this::evictById);
         super.deleteAll(ids);
     }
@@ -256,7 +256,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         T result = keyCache.get(key, k -> query().and(queryAttribute, k).first().orElse(null));
         if (result != null) {
             // Cross-populate ID cache
-            ID id = idExtractor.apply(result);
+            I id = idExtractor.apply(result);
             if (id != null) {
                 idCache.put(id, result);
             }
@@ -285,11 +285,11 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     public void evict(T entity) {
         K key = keyExtractor.apply(entity);
         if (key != null) keyCache.invalidate(key);
-        ID id = idExtractor.apply(entity);
+        I id = idExtractor.apply(entity);
         if (id != null) idCache.invalidate(id);
     }
 
-    public void evictById(ID id) {
+    public void evictById(I id) {
         T cached = idCache.getIfPresent(id);
         if (cached != null) {
             K key = keyExtractor.apply(cached);
@@ -301,7 +301,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     public void evictByKey(K key) {
         T cached = keyCache.getIfPresent(key);
         if (cached != null) {
-            ID id = idExtractor.apply(cached);
+            I id = idExtractor.apply(cached);
             if (id != null) idCache.invalidate(id);
         }
         keyCache.invalidate(key);
@@ -352,7 +352,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         return Map.copyOf(keyCache.asMap());
     }
 
-    public Map<ID, T> getCachedById() {
+    public Map<I, T> getCachedById() {
         return Map.copyOf(idCache.asMap());
     }
 
@@ -400,7 +400,7 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
         if (key != null) {
             keyCache.put(key, entity);
         }
-        ID id = idExtractor.apply(entity);
+        I id = idExtractor.apply(entity);
         if (id != null) {
             idCache.put(id, entity);
         }
@@ -419,16 +419,16 @@ public abstract class AbstractCachedRepository<T, ID, K> extends AbstractCrudRep
     }
 
     @SuppressWarnings("unchecked")
-    private Function<T, ID> createIdExtractor(Class<T> entityClass) {
+    private Function<T, I> createIdExtractor(Class<T> entityClass) {
         if (Identifiable.class.isAssignableFrom(entityClass)) {
-            return entity -> ((Identifiable<ID>) entity).getId();
+            return entity -> ((Identifiable<I>) entity).getId();
         }
         LOGGER.warn("Entity {} does not implement Identifiable — using reflection for ID extraction. " +
-            "Consider implementing Identifiable<ID> for better performance.", entityClass.getName());
+            "Consider implementing Identifiable<I> for better performance.", entityClass.getName());
         return entity -> {
             try {
                 var method = entity.getClass().getMethod("getId");
-                return (ID) method.invoke(entity);
+                return (I) method.invoke(entity);
             } catch (Exception e) {
                 return null;
             }

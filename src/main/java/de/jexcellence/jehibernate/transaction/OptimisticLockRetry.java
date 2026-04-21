@@ -191,7 +191,7 @@ public final class OptimisticLockRetry {
             Thread.sleep(duration.toMillis());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted during retry backoff", e);
+            throw new OptimisticLockRetryException("Interrupted during retry backoff", e);
         }
     }
 }

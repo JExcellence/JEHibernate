@@ -81,7 +81,7 @@ public final class RepositoryRegistry {
         this.factory = new RepositoryFactory(executorService, entityManagerFactory);
     }
     
-    public <T, ID, R extends Repository<T, ID>> void register(Class<R> repositoryClass, Class<T> entityClass) {
+    public <T, I, R extends Repository<T, I>> void register(Class<R> repositoryClass, Class<T> entityClass) {
         registrations.put(repositoryClass, entityClass);
         LOGGER.debug("Registered repository: {} for entity: {}", 
             repositoryClass.getSimpleName(), entityClass.getSimpleName());

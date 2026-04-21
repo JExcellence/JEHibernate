@@ -1,7 +1,6 @@
 package examples;
 
 import de.jexcellence.jehibernate.config.DatabaseType;
-import de.jexcellence.jehibernate.config.PropertyLoader;
 import de.jexcellence.jehibernate.core.JEHibernate;
 import de.jexcellence.jehibernate.entity.base.LongIdEntity;
 import de.jexcellence.jehibernate.entity.base.UuidEntity;
@@ -13,6 +12,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
@@ -49,6 +50,16 @@ class MinecraftPlayer extends UuidEntity {
     public void setPlaytime(long playtime) { this.playtime = playtime; }
     public long getBalance() { return balance; }
     public void setBalance(long balance) { this.balance = balance; }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 @Entity
@@ -57,8 +68,11 @@ class Warp extends LongIdEntity {
     @Column(nullable = false, unique = true)
     private String name;
     private String world;
-    private double x, y, z;
-    private float yaw, pitch;
+    private double x;
+    private double y;
+    private double z;
+    private float yaw;
+    private float pitch;
 
     protected Warp() {}
 
@@ -77,6 +91,16 @@ class Warp extends LongIdEntity {
     public double getZ() { return z; }
     public float getYaw() { return yaw; }
     public float getPitch() { return pitch; }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 // ============================================================================
@@ -152,36 +176,15 @@ class EconomyService {
  */
 public class BukkitPluginExample /* extends JavaPlugin */ {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(BukkitPluginExample.class);
+
     private JEHibernate jeHibernate;
     private PlayerRepository playerRepo;
     private WarpRepository warpRepo;
-    private EconomyService economyService;
 
     // === OPTION A: Load from properties file (recommended) ===
 
     public void onEnableWithProperties() {
-        // File pluginFolder = getDataFolder();  // Bukkit API
-
-        // 1. Save default config from JAR resources to plugins/MyPlugin/database/
-        // saveResource("database/hibernate.properties", false);
-
-        // 2. Load properties and build
-        // Properties props = PropertyLoader.load(getDataFolder(), "database", "hibernate.properties");
-        // jeHibernate = JEHibernate.builder()
-        //     .configuration(config -> config.fromProperties(props))
-        //     .scanPackages("com.example.myplugin")
-        //     .build();
-
-        // 3. Get repositories
-        // playerRepo = jeHibernate.repositories().get(PlayerRepository.class);
-        // warpRepo = jeHibernate.repositories().get(WarpRepository.class);
-
-        // 4. Create services with auto-injection
-        // economyService = jeHibernate.repositories().createWithInjection(EconomyService.class);
-
-        // 5. Preload player cache asynchronously (non-blocking)
-        // playerRepo.preloadAsync().thenRun(() ->
-        //     getLogger().info("Player cache loaded: " + playerRepo.getCacheSize() + " players"));
     }
 
     // === OPTION B: Programmatic config (for simple setups) ===
@@ -199,7 +202,7 @@ public class BukkitPluginExample /* extends JavaPlugin */ {
 
         playerRepo = jeHibernate.repositories().get(PlayerRepository.class);
         warpRepo = jeHibernate.repositories().get(WarpRepository.class);
-        economyService = jeHibernate.repositories().createWithInjection(EconomyService.class);
+        EconomyService economyService = jeHibernate.repositories().createWithInjection(EconomyService.class);
 
         playerRepo.preloadAsync();
     }
@@ -239,7 +242,7 @@ public class BukkitPluginExample /* extends JavaPlugin */ {
             .list();
 
         warps.forEach(w ->
-            System.out.println(w.getName() + " @ " + w.getX() + ", " + w.getY() + ", " + w.getZ()));
+            LOGGER.info("{} @ {}, {}, {}", w.getName(), w.getX(), w.getY(), w.getZ()));
     }
 
     public void searchWarps(String query) {
@@ -248,8 +251,8 @@ public class BukkitPluginExample /* extends JavaPlugin */ {
             .orderBy("name")
             .getPage(0, 10);
 
-        System.out.println("Found " + warps.totalElements() + " warps (showing page 1):");
-        warps.content().forEach(w -> System.out.println("  " + w.getName()));
+        LOGGER.info("Found {} warps (showing page 1):", warps.totalElements());
+        warps.content().forEach(w -> LOGGER.info("  {}", w.getName()));
     }
 
     // === Shutdown ===

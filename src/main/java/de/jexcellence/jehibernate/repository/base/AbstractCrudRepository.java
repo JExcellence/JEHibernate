@@ -66,13 +66,13 @@ import java.util.function.Supplier;
  * }</pre>
  *
  * @param <T> the entity type
- * @param <ID> the ID type
+ * @param <I> the ID type
  * @author JEHibernate
  * @version 2.0
  * @since 1.0
  */
 
-public abstract class AbstractCrudRepository<T, ID> implements QueryableRepository<T, ID> {
+public abstract class AbstractCrudRepository<T, I> implements QueryableRepository<T, I> {
     
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractCrudRepository.class);
     private static final int BATCH_SIZE = 50;
@@ -136,10 +136,10 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
     }
     
     @Override
-    public Optional<T> findById(ID id) {
+    public Optional<T> findById(I id) {
         return executeInTransaction(em -> Optional.ofNullable(em.find(entityClass, id)));
     }
-    
+
     /**
      * Finds an entity by ID or throws an exception if not found.
      * <p>
@@ -163,11 +163,11 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
      * @return the entity
      * @throws EntityNotFoundException if the entity is not found
      */
-    public T findByIdOrThrow(ID id) {
+    public T findByIdOrThrow(I id) {
         return findById(id)
             .orElseThrow(() -> new EntityNotFoundException(entityClass, id));
     }
-    
+
     /**
      * Finds an entity by ID or creates a new one if not found.
      * <p>
@@ -183,13 +183,13 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
      * @param creator supplier to create new entity if not found
      * @return existing entity or newly created entity
      */
-    public T findByIdOrCreate(ID id, Supplier<T> creator) {
+    public T findByIdOrCreate(I id, Supplier<T> creator) {
         return findById(id)
             .orElseGet(() -> create(creator.get()));
     }
-    
+
     @Override
-    public CompletableFuture<Optional<T>> findByIdAsync(ID id) {
+    public CompletableFuture<Optional<T>> findByIdAsync(I id) {
         return CompletableFuture.supplyAsync(() -> findById(id), executorService);
     }
     
@@ -229,7 +229,7 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
     }
     
     @Override
-    public List<T> findAllById(Collection<ID> ids) {
+    public List<T> findAllById(Collection<I> ids) {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }
@@ -298,7 +298,7 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
      * @param idExtractor function to extract ID from entity
      * @return the saved entity
      */
-    public T createOrUpdate(T entity, Function<T, ID> idExtractor) {
+    public T createOrUpdate(T entity, Function<T, I> idExtractor) {
         return Optional.ofNullable(idExtractor.apply(entity))
             .flatMap(this::findById)
             .map(_unused -> update(entity))
@@ -329,7 +329,7 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
     }
     
     @Override
-    public void delete(ID id) {
+    public void delete(I id) {
         executeInTransaction(em -> {
             T entity = em.find(entityClass, id);
             if (entity != null) {
@@ -340,7 +340,7 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
     }
     
     @Override
-    public void deleteAll(Collection<ID> ids) {
+    public void deleteAll(Collection<I> ids) {
         if (ids.isEmpty()) {
             return;
         }
@@ -355,12 +355,12 @@ public abstract class AbstractCrudRepository<T, ID> implements QueryableReposito
     }
     
     @Override
-    public CompletableFuture<Void> deleteAsync(ID id) {
+    public CompletableFuture<Void> deleteAsync(I id) {
         return CompletableFuture.runAsync(() -> delete(id), executorService);
     }
     
     @Override
-    public boolean exists(ID id) {
+    public boolean exists(I id) {
         return executeInTransaction(em -> {
             CriteriaBuilder cb = em.getCriteriaBuilder();
             CriteriaQuery<Long> cq = cb.createQuery(Long.class);

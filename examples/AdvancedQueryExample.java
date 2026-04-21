@@ -7,6 +7,8 @@ import de.jexcellence.jehibernate.repository.base.AbstractCrudRepository;
 import de.jexcellence.jehibernate.repository.query.Specifications;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManagerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -57,7 +59,13 @@ class OrderRepository extends AbstractCrudRepository<Order, Long> {
 }
 
 public class AdvancedQueryExample {
-    
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AdvancedQueryExample.class);
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String FIELD_STATUS = "status";
+    private static final String FIELD_AMOUNT = "amount";
+
     public static void main(String[] args) {
         try (var jeHibernate = JEHibernate.builder()
             .configuration(config -> config
@@ -71,58 +79,58 @@ public class AdvancedQueryExample {
             var orderRepo = jeHibernate.repositories().get(OrderRepository.class);
             
             orderRepo.createAll(java.util.List.of(
-                new Order("alice@example.com", "PENDING", 100.0),
-                new Order("bob@example.com", "COMPLETED", 250.0),
-                new Order("alice@example.com", "COMPLETED", 150.0),
-                new Order("charlie@example.com", "PENDING", 75.0)
+                new Order("alice@example.com", STATUS_PENDING, 100.0),
+                new Order("bob@example.com", STATUS_COMPLETED, 250.0),
+                new Order("alice@example.com", STATUS_COMPLETED, 150.0),
+                new Order("charlie@example.com", STATUS_PENDING, 75.0)
             ));
-            
-            System.out.println("=== Query Builder Examples ===");
-            
+
+            LOGGER.info("=== Query Builder Examples ===");
+
             var pendingOrders = orderRepo.query()
-                .and("status", "PENDING")
-                .greaterThan("amount", 50.0)
-                .orderByDesc("amount")
+                .and(FIELD_STATUS, STATUS_PENDING)
+                .greaterThan(FIELD_AMOUNT, 50.0)
+                .orderByDesc(FIELD_AMOUNT)
                 .list();
-            System.out.println("Pending orders > $50: " + pendingOrders.size());
-            
+            LOGGER.info("Pending orders > $50: {}", pendingOrders.size());
+
             var aliceOrders = orderRepo.query()
                 .like("customerEmail", "alice%")
                 .orderBy("createdAt")
                 .list();
-            System.out.println("Alice's orders: " + aliceOrders.size());
-            
+            LOGGER.info("Alice's orders: {}", aliceOrders.size());
+
             var recentOrders = orderRepo.query()
                 .greaterThan("createdAt", Instant.now().minus(1, ChronoUnit.HOURS))
                 .list();
-            System.out.println("Recent orders: " + recentOrders.size());
-            
-            System.out.println("\n=== Specification Examples ===");
-            
-            var completedSpec = Specifications.<Order>equalTo("status", "COMPLETED")
-                .and(Specifications.greaterThan("amount", 100.0));
-            
+            LOGGER.info("Recent orders: {}", recentOrders.size());
+
+            LOGGER.info("=== Specification Examples ===");
+
+            var completedSpec = Specifications.<Order>equalTo(FIELD_STATUS, STATUS_COMPLETED)
+                .and(Specifications.greaterThan(FIELD_AMOUNT, 100.0));
+
             var completedOrders = orderRepo.findAll(completedSpec);
-            System.out.println("Completed orders > $100: " + completedOrders.size());
-            
-            var highValueSpec = Specifications.<Order>greaterThanOrEqual("amount", 200.0);
+            LOGGER.info("Completed orders > $100: {}", completedOrders.size());
+
+            var highValueSpec = Specifications.<Order>greaterThanOrEqual(FIELD_AMOUNT, 200.0);
             var highValueCount = orderRepo.count(highValueSpec);
-            System.out.println("High value orders: " + highValueCount);
-            
-            System.out.println("\n=== Async Query Examples ===");
-            
+            LOGGER.info("High value orders: {}", highValueCount);
+
+            LOGGER.info("=== Async Query Examples ===");
+
             orderRepo.query()
-                .and("status", "PENDING")
+                .and(FIELD_STATUS, STATUS_PENDING)
                 .listAsync()
-                .thenAccept(orders -> 
-                    System.out.println("Async pending orders: " + orders.size()))
+                .thenAccept(orders ->
+                    LOGGER.info("Async pending orders: {}", orders.size()))
                 .join();
-            
+
             orderRepo.query()
                 .like("customerEmail", "%@example.com")
                 .countAsync()
-                .thenAccept(count -> 
-                    System.out.println("Async total orders: " + count))
+                .thenAccept(count ->
+                    LOGGER.info("Async total orders: {}", count))
                 .join();
         }
     }

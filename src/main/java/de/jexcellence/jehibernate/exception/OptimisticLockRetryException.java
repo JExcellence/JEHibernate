@@ -22,6 +22,7 @@ import java.io.Serial;
  * @see TransactionException
  * @see de.jexcellence.jehibernate.transaction.OptimisticLockRetry
  */
+@SuppressWarnings("java:S110")
 public final class OptimisticLockRetryException extends TransactionException {
     
     @Serial

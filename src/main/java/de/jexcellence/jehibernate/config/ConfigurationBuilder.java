@@ -273,50 +273,39 @@ public final class ConfigurationBuilder {
     public EntityManagerFactory build() {
         validate();
 
-        // The defining classloader of ConfigurationBuilder is the plugin classloader — it can
-        // see the plugin JAR (entities, converters, naming strategies) as well as the
-        // JEDependency-injected Hibernate JARs. Passing it to BootstrapServiceRegistryBuilder
-        // registers it with Hibernate's AggregatedClassLoader so that all service lookups,
-        // proxy generation, and annotation scanning can find plugin-side classes.
         final ClassLoader pluginClassLoader = ConfigurationBuilder.class.getClassLoader();
-
-        Map<String, Object> config = buildConfiguration();
 
         BootstrapServiceRegistry bsr = new BootstrapServiceRegistryBuilder()
             .applyClassLoader(pluginClassLoader)
             .build();
 
         try {
-            StandardServiceRegistry ssr = new StandardServiceRegistryBuilder(bsr)
-                .applySettings(config)
-                .build();
-
-            try {
-                MetadataSources sources = new MetadataSources(ssr);
-                entityClasses.forEach(sources::addAnnotatedClass);
-
-                // applyPhysicalNamingStrategy stores the instance in a field on
-                // MetadataBuilderImpl — no StrategySelector, no class-name resolution,
-                // no classloader lookup.  This is the canonical fix for the
-                // StrategySelectionException that occurs when the strategy class is visible
-                // to the plugin classloader but not to Hibernate's internal ClassLoaderService.
-                Metadata metadata = sources.getMetadataBuilder()
-                    .applyPhysicalNamingStrategy(namingStrategy)
-                    .build();
-
-                // SessionFactory extends EntityManagerFactory in Hibernate 7 — safe upcast.
-                return metadata.getSessionFactoryBuilder().build();
-
-            } catch (Exception e) {
-                // Destroy SSR (and its child resources) on failure so connections are released.
-                StandardServiceRegistryBuilder.destroy(ssr);
-                if (e instanceof RuntimeException re) throw re;
-                throw new JEHibernateException("Failed to build EntityManagerFactory", e);
-            }
+            return buildWithRegistry(bsr);
         } catch (RuntimeException e) {
-            // BSR holds no DB resources but close it for tidiness on any build failure.
             bsr.close();
             throw e;
+        }
+    }
+
+    private EntityManagerFactory buildWithRegistry(BootstrapServiceRegistry bsr) {
+        StandardServiceRegistry ssr = new StandardServiceRegistryBuilder(bsr)
+            .applySettings(buildConfiguration())
+            .build();
+
+        try {
+            MetadataSources sources = new MetadataSources(ssr);
+            entityClasses.forEach(sources::addAnnotatedClass);
+
+            Metadata metadata = sources.getMetadataBuilder()
+                .applyPhysicalNamingStrategy(namingStrategy)
+                .build();
+
+            return metadata.getSessionFactoryBuilder().build();
+
+        } catch (Exception e) {
+            StandardServiceRegistryBuilder.destroy(ssr);
+            if (e instanceof RuntimeException re) throw re;
+            throw new JEHibernateException("Failed to build EntityManagerFactory", e);
         }
     }
 

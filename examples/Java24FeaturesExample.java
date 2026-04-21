@@ -8,6 +8,8 @@ import de.jexcellence.jehibernate.repository.base.AbstractCrudRepository;
 import de.jexcellence.jehibernate.repository.query.PageResult;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManagerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ExecutorService;
 
@@ -31,6 +33,16 @@ class Product extends LongIdEntity {
     public void setPrice(double price) { this.price = price; }
     public boolean isAvailable() { return available; }
     public void setAvailable(boolean available) { this.available = available; }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 class ProductRepository extends AbstractCrudRepository<Product, Long> {
@@ -48,7 +60,10 @@ class ProductRepository extends AbstractCrudRepository<Product, Long> {
  * - Fluent API improvements
  */
 public class Java24FeaturesExample {
-    
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Java24FeaturesExample.class);
+    private static final String FIELD_PRICE = "price";
+
     public static void main(String[] args) {
         try (var jeHibernate = JEHibernate.builder()
             .configuration(config -> config
@@ -68,81 +83,78 @@ public class Java24FeaturesExample {
             }
             
             // 1. Enhanced Optional methods - findByIdOrThrow
-            System.out.println("\n=== Feature 1: findByIdOrThrow ===");
+            LOGGER.info("=== Feature 1: findByIdOrThrow ===");
             try {
                 Product product = productRepo.findByIdOrThrow(1L);
-                System.out.println("Found: " + product.getName());
-                
+                LOGGER.info("Found: {}", product.getName());
+
                 // This will throw EntityNotFoundException
                 productRepo.findByIdOrThrow(999L);
             } catch (EntityNotFoundException e) {
-                System.out.println("Expected exception: " + e.getMessage());
+                LOGGER.info("Expected exception: {}", e.getMessage());
             }
-            
+
             // 2. findByIdOrCreate - create if not exists
-            System.out.println("\n=== Feature 2: findByIdOrCreate ===");
+            LOGGER.info("=== Feature 2: findByIdOrCreate ===");
             Product newProduct = productRepo.findByIdOrCreate(
-                999L, 
+                999L,
                 () -> new Product("Auto-created Product", 99.99)
             );
-            System.out.println("Created: " + newProduct.getName() + " with ID: " + newProduct.getId());
-            
+            LOGGER.info("Created: {} with ID: {}", newProduct.getName(), newProduct.getId());
+
             // 3. createOrUpdate - smart save
-            System.out.println("\n=== Feature 3: createOrUpdate ===");
+            LOGGER.info("=== Feature 3: createOrUpdate ===");
             Product toUpdate = new Product("Updated Product", 150.0);
             toUpdate.setId(1L);
             Product updated = productRepo.createOrUpdate(toUpdate, Product::getId);
-            System.out.println("Updated product ID 1 to: " + updated.getName());
-            
+            LOGGER.info("Updated product ID 1 to: {}", updated.getName());
+
             // 4. PageResult record - pagination with metadata
-            System.out.println("\n=== Feature 4: PageResult (Record) ===");
+            LOGGER.info("=== Feature 4: PageResult (Record) ===");
             PageResult<Product> page = productRepo.query()
-                .greaterThan("price", 100.0)
-                .orderBy("price")
+                .greaterThan(FIELD_PRICE, 100.0)
+                .orderBy(FIELD_PRICE)
                 .getPage(0, 5);
-            
-            System.out.println("Page " + (page.pageNumber() + 1) + " of " + page.totalPages());
-            System.out.println("Total elements: " + page.totalElements());
-            System.out.println("Has next: " + page.hasNext());
-            System.out.println("Elements in this page: " + page.numberOfElements());
-            page.content().forEach(p -> 
-                System.out.println("  - " + p.getName() + ": $" + p.getPrice())
+
+            LOGGER.info("Page {} of {}", page.pageNumber() + 1, page.totalPages());
+            LOGGER.info("Total elements: {}", page.totalElements());
+            LOGGER.info("Has next: {}", page.hasNext());
+            LOGGER.info("Elements in this page: {}", page.numberOfElements());
+            page.content().forEach(p ->
+                LOGGER.info("  - {}: ${}", p.getName(), p.getPrice())
             );
-            
+
             // 5. Functional filtering with findAllMatching
-            System.out.println("\n=== Feature 5: findAllMatching ===");
+            LOGGER.info("=== Feature 5: findAllMatching ===");
             var expensiveProducts = productRepo.findAllMatching(
                 p -> p.getPrice() > 200.0 && p.isAvailable()
             );
-            System.out.println("Found " + expensiveProducts.size() + " expensive products");
-            
+            LOGGER.info("Found {} expensive products", expensiveProducts.size());
+
             // 6. Async pagination
-            System.out.println("\n=== Feature 6: Async PageResult ===");
+            LOGGER.info("=== Feature 6: Async PageResult ===");
             productRepo.query()
                 .like("name", "%Product%")
-                .orderByDesc("price")
+                .orderByDesc(FIELD_PRICE)
                 .getPageAsync(0, 10)
                 .thenAccept(asyncPage -> {
-                    System.out.println("Async page loaded with " + 
-                        asyncPage.numberOfElements() + " items");
-                    System.out.println("First item: " + 
-                        asyncPage.content().getFirst().getName());
+                    LOGGER.info("Async page loaded with {} items", asyncPage.numberOfElements());
+                    LOGGER.info("First item: {}", asyncPage.content().getFirst().getName());
                 })
                 .join();
-            
+
             // 7. Pattern matching exception handling (automatic)
-            System.out.println("\n=== Feature 7: Pattern Matching Exceptions ===");
+            LOGGER.info("=== Feature 7: Pattern Matching Exceptions ===");
             try {
                 // This will trigger pattern-matched exception handling
                 productRepo.executeInTransaction(em -> {
                     throw new IllegalArgumentException("Invalid data");
                 });
             } catch (Exception e) {
-                System.out.println("Caught: " + e.getClass().getSimpleName() + 
-                    " - " + e.getMessage());
+                LOGGER.info("Caught: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             }
-            
-            System.out.println("\n=== All Java 24 features demonstrated! ===");
+
+            LOGGER.info("=== All Java 24 features demonstrated! ===");
         }
     }
 }

@@ -6,6 +6,8 @@ import de.jexcellence.jehibernate.entity.base.LongIdEntity;
 import de.jexcellence.jehibernate.repository.base.AbstractCrudRepository;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManagerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.ExecutorService;
 
@@ -29,6 +31,16 @@ class User extends LongIdEntity {
     public void setEmail(String email) { this.email = email; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 class UserRepository extends AbstractCrudRepository<User, Long> {
@@ -38,7 +50,9 @@ class UserRepository extends AbstractCrudRepository<User, Long> {
 }
 
 public class QuickStartExample {
-    
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(QuickStartExample.class);
+
     public static void main(String[] args) {
         try (var jeHibernate = JEHibernate.builder()
             .configuration(config -> config
@@ -53,23 +67,23 @@ public class QuickStartExample {
             var userRepo = jeHibernate.repositories().get(UserRepository.class);
             
             var user = userRepo.create(new User("alice", "alice@example.com"));
-            System.out.println("Created user with ID: " + user.getId());
-            
+            LOGGER.info("Created user with ID: {}", user.getId());
+
             var found = userRepo.findById(user.getId());
-            found.ifPresent(u -> System.out.println("Found user: " + u.getUsername()));
-            
+            found.ifPresent(u -> LOGGER.info("Found user: {}", u.getUsername()));
+
             var activeUsers = userRepo.query()
                 .and("active", true)
                 .like("email", "%@example.com")
                 .list();
-            System.out.println("Active users: " + activeUsers.size());
-            
+            LOGGER.info("Active users: {}", activeUsers.size());
+
             userRepo.createAsync(new User("bob", "bob@example.com"))
-                .thenAccept(created -> System.out.println("Async created: " + created.getUsername()))
+                .thenAccept(created -> LOGGER.info("Async created: {}", created.getUsername()))
                 .join();
-            
+
             long count = userRepo.count();
-            System.out.println("Total users: " + count);
+            LOGGER.info("Total users: {}", count);
         }
     }
 }

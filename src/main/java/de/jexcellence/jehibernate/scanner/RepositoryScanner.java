@@ -70,7 +70,6 @@ public final class RepositoryScanner {
     private RepositoryScanner() {
     }
     
-    @SuppressWarnings({"rawtypes"})
     public static Map<Class<?>, Class<?>> scan(String... basePackages) {
         if (basePackages == null || basePackages.length == 0) {
             LOGGER.warn("No base packages specified for repository scanning");
@@ -79,18 +78,7 @@ public final class RepositoryScanner {
 
         LOGGER.info("Scanning for repositories in packages: {}", Arrays.toString(basePackages));
 
-        // Use the defining classloader of RepositoryScanner — this is the plugin classloader
-        // that has the repository classes on its classpath.  The thread context classloader on
-        // ForkJoinPool workers points to the JEDependency library classloader (downloaded JARs
-        // only) which does NOT contain the plugin JAR and therefore cannot see the repo classes.
         final ClassLoader pluginClassLoader = RepositoryScanner.class.getClassLoader();
-
-        // Obtain the URL of the JAR that contains RepositoryScanner itself.  Since JEHibernate's
-        // thin JAR is bundled (via implementation dep) into the plugin's shadow JAR, this URL
-        // points at the shadow JAR — which also contains the repository classes.  Providing the
-        // URL explicitly is more reliable than letting Reflections enumerate classloader URLs,
-        // because Paper's plugin classloader is not a URLClassLoader and getResources() may
-        // return nothing.
         URL pluginJarUrl = null;
         try {
             pluginJarUrl = RepositoryScanner.class.getProtectionDomain().getCodeSource().getLocation();
@@ -99,64 +87,76 @@ public final class RepositoryScanner {
         }
 
         final Map<Class<?>, Class<?>> repositories = new HashMap<>();
-
         for (final String basePackage : basePackages) {
-            final ConfigurationBuilder config = new ConfigurationBuilder()
-                    .addClassLoaders(pluginClassLoader)
-                    .setScanners(Scanners.SubTypes)
-                    .filterInputsBy(new FilterBuilder().includePackage(basePackage));
-
-            if (pluginJarUrl != null) {
-                config.addUrls(pluginJarUrl);
-            } else {
-                config.forPackage(basePackage, pluginClassLoader);
-            }
-
-            final Reflections reflections = new Reflections(config);
-            final Set<Class<? extends Repository>> repoClasses = reflections.getSubTypesOf(Repository.class);
-
-            for (final Class<?> repoClass : repoClasses) {
-                if (isConcreteRepository(repoClass)) {
-                    final Class<?> entityClass = extractEntityClass(repoClass);
-                    if (entityClass != null) {
-                        repositories.put(repoClass, entityClass);
-                        LOGGER.debug("Found repository: {} for entity: {}",
-                            repoClass.getSimpleName(), entityClass.getSimpleName());
-                    }
-                }
-            }
+            repositories.putAll(scanPackage(basePackage, pluginClassLoader, pluginJarUrl));
         }
 
         LOGGER.info("Found {} repositories", repositories.size());
         return repositories;
     }
-    
-    private static boolean isConcreteRepository(Class<?> clazz) {
-        return !clazz.isInterface() && !Modifier.isAbstract(clazz.getModifiers());
-    }
-    
-    private static Class<?> extractEntityClass(Class<?> repositoryClass) {
-        Type genericSuperclass = repositoryClass.getGenericSuperclass();
-        
-        if (genericSuperclass instanceof ParameterizedType parameterizedType) {
-            Type[] typeArguments = parameterizedType.getActualTypeArguments();
-            if (typeArguments.length > 0 && typeArguments[0] instanceof Class<?>) {
-                return (Class<?>) typeArguments[0];
-            }
+
+    @SuppressWarnings("rawtypes")
+    private static Map<Class<?>, Class<?>> scanPackage(String basePackage, ClassLoader pluginClassLoader, URL pluginJarUrl) {
+        final ConfigurationBuilder config = new ConfigurationBuilder()
+                .addClassLoaders(pluginClassLoader)
+                .setScanners(Scanners.SubTypes)
+                .filterInputsBy(new FilterBuilder().includePackage(basePackage));
+
+        if (pluginJarUrl != null) {
+            config.addUrls(pluginJarUrl);
+        } else {
+            config.forPackage(basePackage, pluginClassLoader);
         }
-        
-        for (Type genericInterface : repositoryClass.getGenericInterfaces()) {
-            if (genericInterface instanceof ParameterizedType parameterizedType) {
-                Type rawType = parameterizedType.getRawType();
-                if (rawType instanceof Class<?> && Repository.class.isAssignableFrom((Class<?>) rawType)) {
-                    Type[] typeArguments = parameterizedType.getActualTypeArguments();
-                    if (typeArguments.length > 0 && typeArguments[0] instanceof Class<?>) {
-                        return (Class<?>) typeArguments[0];
-                    }
+
+        final Reflections reflections = new Reflections(config);
+        final Set<Class<? extends Repository>> repoClasses = reflections.getSubTypesOf(Repository.class);
+
+        final Map<Class<?>, Class<?>> result = new HashMap<>();
+        for (final Class<?> repoClass : repoClasses) {
+            if (isConcreteRepository(repoClass)) {
+                final Class<?> entityClass = extractEntityClass(repoClass);
+                if (entityClass != null) {
+                    result.put(repoClass, entityClass);
+                    LOGGER.debug("Found repository: {} for entity: {}",
+                        repoClass.getSimpleName(), entityClass.getSimpleName());
                 }
             }
         }
-        
+        return result;
+    }
+
+    private static boolean isConcreteRepository(Class<?> clazz) {
+        return !clazz.isInterface() && !Modifier.isAbstract(clazz.getModifiers());
+    }
+
+    private static Class<?> extractEntityClass(Class<?> repositoryClass) {
+        Type genericSuperclass = repositoryClass.getGenericSuperclass();
+        if (genericSuperclass instanceof ParameterizedType parameterizedType) {
+            Class<?> fromSuper = extractFirstTypeArg(parameterizedType);
+            if (fromSuper != null) return fromSuper;
+        }
+        for (Type genericInterface : repositoryClass.getGenericInterfaces()) {
+            if (genericInterface instanceof ParameterizedType parameterizedType) {
+                Class<?> fromIface = extractEntityFromInterface(parameterizedType);
+                if (fromIface != null) return fromIface;
+            }
+        }
+        return null;
+    }
+
+    private static Class<?> extractFirstTypeArg(ParameterizedType parameterizedType) {
+        Type[] typeArguments = parameterizedType.getActualTypeArguments();
+        if (typeArguments.length > 0 && typeArguments[0] instanceof Class<?> c) {
+            return c;
+        }
+        return null;
+    }
+
+    private static Class<?> extractEntityFromInterface(ParameterizedType parameterizedType) {
+        Type rawType = parameterizedType.getRawType();
+        if (rawType instanceof Class<?> rawClass && Repository.class.isAssignableFrom(rawClass)) {
+            return extractFirstTypeArg(parameterizedType);
+        }
         return null;
     }
 }
