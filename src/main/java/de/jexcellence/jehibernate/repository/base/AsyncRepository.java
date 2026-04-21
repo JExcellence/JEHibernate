@@ -43,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
  * separate EntityManager instances per operation.
  *
  * @param <T> the entity type
- * @param <ID> the ID type
+ * @param <I> the ID type
  * @author JEHibernate
  * @version 2.0
  * @since 1.0
@@ -52,7 +52,7 @@ import java.util.concurrent.CompletableFuture;
  * @see CompletableFuture
  */
 
-public sealed interface AsyncRepository<T, ID> extends CrudRepository<T, ID>
+public sealed interface AsyncRepository<T, I> extends CrudRepository<T, I>
     permits QueryableRepository {
     
     /**
@@ -81,8 +81,8 @@ public sealed interface AsyncRepository<T, ID> extends CrudRepository<T, ID>
      * @param id the entity ID (must not be null)
      * @return CompletableFuture containing Optional with the entity if found
      */
-    CompletableFuture<Optional<T>> findByIdAsync(ID id);
-    
+    CompletableFuture<Optional<T>> findByIdAsync(I id);
+
     /**
      * Asynchronously retrieves all entities.
      * <p>
@@ -115,7 +115,7 @@ public sealed interface AsyncRepository<T, ID> extends CrudRepository<T, ID>
      * @param id the entity ID (must not be null)
      * @return CompletableFuture that completes when deletion is done
      */
-    CompletableFuture<Void> deleteAsync(ID id);
+    CompletableFuture<Void> deleteAsync(I id);
 
     /**
      * Asynchronously saves multiple entities in a batch.

@@ -65,7 +65,7 @@ import java.util.UUID;
  * repo.update(user2);  // Throws OptimisticLockException
  * }</pre>
  *
- * @param <ID> the ID type (Long, UUID, or String)
+ * @param <I> the ID type (Long, UUID, or String)
  * @author JEHibernate
  * @version 2.0
  * @since 1.0
@@ -75,7 +75,7 @@ import java.util.UUID;
  * @see Identifiable
  */
 @MappedSuperclass
-public abstract class BaseEntity<ID> implements Identifiable<ID>, Serializable {
+public abstract class BaseEntity<I> implements Identifiable<I>, Serializable {
     
     @Serial
     private static final long serialVersionUID = 1L;
@@ -85,7 +85,7 @@ public abstract class BaseEntity<ID> implements Identifiable<ID>, Serializable {
      * Without this, all new entities (getId() == null) would be considered equal,
      * breaking HashSet/HashMap usage. Not serialized — only used for in-memory identity.
      */
-    private transient final UUID identityToken = UUID.randomUUID();
+    private final transient UUID identityToken = UUID.randomUUID();
 
     @Version
     private int version;

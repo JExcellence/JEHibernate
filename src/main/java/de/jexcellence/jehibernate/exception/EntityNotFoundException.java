@@ -17,6 +17,7 @@ import java.io.Serial;
  * @since 1.0
  * @see RepositoryException
  */
+@SuppressWarnings("java:S110")
 public final class EntityNotFoundException extends RepositoryException {
     
     @Serial

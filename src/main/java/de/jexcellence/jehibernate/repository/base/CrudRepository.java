@@ -40,7 +40,7 @@ import java.util.List;
  * }</pre>
  *
  * @param <T> the entity type
- * @param <ID> the ID type
+ * @param <I> the ID type
  * @author JEHibernate
  * @version 2.0
  * @since 1.0
@@ -48,7 +48,7 @@ import java.util.List;
  * @see AsyncRepository
  */
 
-public sealed interface CrudRepository<T, ID> extends Repository<T, ID>
+public sealed interface CrudRepository<T, I> extends Repository<T, I>
     permits AsyncRepository {
     
     /**
@@ -98,15 +98,15 @@ public sealed interface CrudRepository<T, ID> extends Repository<T, ID>
      *
      * @param ids the entity IDs to delete (must not be null or empty)
      */
-    void deleteAll(Collection<ID> ids);
-    
+    void deleteAll(Collection<I> ids);
+
     /**
      * Finds multiple entities by their IDs.
      *
      * @param ids the entity IDs to find (must not be null or empty)
      * @return list of found entities (may be smaller than input if some IDs don't exist)
      */
-    List<T> findAllById(Collection<ID> ids);
+    List<T> findAllById(Collection<I> ids);
     
     /**
      * Saves multiple entities in a batch operation.

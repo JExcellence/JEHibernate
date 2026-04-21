@@ -12,6 +12,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
@@ -45,6 +47,16 @@ class User extends LongIdEntity {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 @Entity
@@ -71,6 +83,16 @@ class Product extends LongIdEntity {
     public void setPrice(double price) { this.price = price; }
     public int getStock() { return stock; }
     public void setStock(int stock) { this.stock = stock; }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 // ============================================================================
@@ -149,6 +171,9 @@ class ProductRepository extends AbstractCrudRepository<Product, Long> {
  * }</pre>
  */
 public class SpringBootExample {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SpringBootExample.class);
+    private static final String CATEGORY_ELECTRONICS = "Electronics";
 
     // Simulates a Spring @Service
     static class UserService {
@@ -267,42 +292,42 @@ public class SpringBootExample {
         var productService = new ProductService(productRepo);
 
         // --- User operations ---
-        System.out.println("=== User Operations ===");
+        LOGGER.info("=== User Operations ===");
 
         userService.register("alice@example.com", "Alice");
         userService.register("bob@example.com", "Bob");
         userService.register("charlie@example.com", "Charlie");
 
         var alice = userService.findByEmail("alice@example.com");
-        System.out.println("Found: " + alice.map(User::getDisplayName).orElse("not found"));
+        LOGGER.info("Found: {}", alice.map(User::getDisplayName).orElse("not found"));
 
         var page = userService.listActiveUsers(0, 10);
-        System.out.println("Active users: " + page.totalElements());
+        LOGGER.info("Active users: {}", page.totalElements());
 
         var searchResults = userService.searchUsers("ali");
-        System.out.println("Search 'ali': " + searchResults.size() + " results");
+        LOGGER.info("Search 'ali': {} results", searchResults.size());
 
         // --- Product operations ---
-        System.out.println("\n=== Product Operations ===");
+        LOGGER.info("=== Product Operations ===");
 
         productService.importProducts(List.of(
-            new Product("Widget", "Electronics", 29.99, 100),
-            new Product("Gadget", "Electronics", 49.99, 50),
+            new Product("Widget", CATEGORY_ELECTRONICS, 29.99, 100),
+            new Product("Gadget", CATEGORY_ELECTRONICS, 49.99, 50),
             new Product("Book", "Education", 14.99, 200),
             new Product("Pen", "Office", 2.99, 500)
         ));
 
-        var electronics = productService.listProducts("Electronics", 0, 10);
-        System.out.println("Electronics: " + electronics.totalElements());
+        var electronics = productService.listProducts(CATEGORY_ELECTRONICS, 0, 10);
+        LOGGER.info("Electronics: {}", electronics.totalElements());
 
         var affordable = productService.findAffordable(20.0);
-        System.out.println("Under $20: " + affordable.size() + " products");
+        LOGGER.info("Under $20: {} products", affordable.size());
 
         var report = productService.generateReport();
-        System.out.println("Report: " + report);
+        LOGGER.info("Report: {}", report);
 
         // --- Cleanup ---
         jeHibernate.close();
-        System.out.println("\nDone.");
+        LOGGER.info("Done.");
     }
 }

@@ -50,7 +50,7 @@ import java.util.Optional;
  * </ul>
  *
  * @param <T> the entity type
- * @param <ID> the ID type
+ * @param <I> the ID type
  * @author JEHibernate
  * @version 2.0
  * @since 1.0
@@ -59,7 +59,7 @@ import java.util.Optional;
  * @see AsyncRepository
  */
 
-public non-sealed interface QueryableRepository<T, ID> extends AsyncRepository<T, ID> {
+public non-sealed interface QueryableRepository<T, I> extends AsyncRepository<T, I> {
     
     /**
      * Creates a new query builder for type-safe, fluent query construction.

@@ -44,7 +44,7 @@ import java.util.Optional;
  * }</pre>
  *
  * @param <T> the entity type
- * @param <ID> the ID type
+ * @param <I> the ID type
  * @author JEHibernate
  * @version 2.0
  * @since 1.0
@@ -53,17 +53,17 @@ import java.util.Optional;
  * @see QueryableRepository
  */
 
-public sealed interface Repository<T, ID> 
+public sealed interface Repository<T, I>
     permits CrudRepository {
-    
+
     /**
      * Finds an entity by its ID.
      *
      * @param id the entity ID (must not be null)
      * @return an Optional containing the entity if found, empty otherwise
      */
-    Optional<T> findById(ID id);
-    
+    Optional<T> findById(I id);
+
     /**
      * Retrieves all entities of this type.
      * <p>
@@ -74,7 +74,7 @@ public sealed interface Repository<T, ID>
      * @see CrudRepository#findAll(int, int)
      */
     List<T> findAll();
-    
+
     /**
      * Saves or updates an entity.
      * <p>
@@ -85,7 +85,7 @@ public sealed interface Repository<T, ID>
      * @return the saved entity
      */
     T save(T entity);
-    
+
     /**
      * Deletes an entity by its ID.
      * <p>
@@ -93,15 +93,15 @@ public sealed interface Repository<T, ID>
      *
      * @param id the entity ID (must not be null)
      */
-    void delete(ID id);
-    
+    void delete(I id);
+
     /**
      * Checks if an entity with the given ID exists.
      *
      * @param id the entity ID (must not be null)
      * @return true if the entity exists, false otherwise
      */
-    boolean exists(ID id);
+    boolean exists(I id);
     
     /**
      * Counts the total number of entities.

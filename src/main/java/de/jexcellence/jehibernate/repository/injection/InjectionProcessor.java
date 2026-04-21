@@ -95,7 +95,11 @@ public final class InjectionProcessor {
         
         try {
             Object repository = registry.get(fieldType);
-            field.setAccessible(true);
+            if (!field.trySetAccessible()) {
+                throw new RepositoryException(
+                    "Cannot access field: " + field.getName() + " in " + target.getClass().getName()
+                );
+            }
             field.set(target, repository);
         } catch (IllegalAccessException e) {
             throw new RepositoryException(

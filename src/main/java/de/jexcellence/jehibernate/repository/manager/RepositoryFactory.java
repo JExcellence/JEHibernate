@@ -2,8 +2,6 @@ package de.jexcellence.jehibernate.repository.manager;
 
 import de.jexcellence.jehibernate.exception.RepositoryException;
 import jakarta.persistence.EntityManagerFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
 import java.util.concurrent.ExecutorService;
@@ -23,8 +21,6 @@ import java.util.concurrent.ExecutorService;
  */
 public final class RepositoryFactory {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RepositoryFactory.class);
-
     private final ExecutorService executorService;
     private final EntityManagerFactory entityManagerFactory;
 
@@ -41,21 +37,27 @@ public final class RepositoryFactory {
             Constructor<T> ctor = findConstructor(repositoryClass,
                 ExecutorService.class, EntityManagerFactory.class, Class.class);
             if (ctor != null) {
-                ctor.setAccessible(true);
+                if (!ctor.trySetAccessible()) {
+                    throw new RepositoryException("Cannot access constructor of: " + repositoryClass.getName());
+                }
                 return ctor.newInstance(executorService, entityManagerFactory, entityClass);
             }
 
             // 2. Without executor: (EntityManagerFactory, Class)
             ctor = findConstructor(repositoryClass, EntityManagerFactory.class, Class.class);
             if (ctor != null) {
-                ctor.setAccessible(true);
+                if (!ctor.trySetAccessible()) {
+                    throw new RepositoryException("Cannot access constructor of: " + repositoryClass.getName());
+                }
                 return ctor.newInstance(entityManagerFactory, entityClass);
             }
 
             // 3. Without entity class: (ExecutorService, EntityManagerFactory)
             ctor = findConstructor(repositoryClass, ExecutorService.class, EntityManagerFactory.class);
             if (ctor != null) {
-                ctor.setAccessible(true);
+                if (!ctor.trySetAccessible()) {
+                    throw new RepositoryException("Cannot access constructor of: " + repositoryClass.getName());
+                }
                 return ctor.newInstance(executorService, entityManagerFactory);
             }
 

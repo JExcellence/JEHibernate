@@ -91,4 +91,20 @@ public abstract class StringIdEntity extends BaseEntity<String> {
         }
         this.id = id;
     }
+
+    /**
+     * Delegates to {@link de.jexcellence.jehibernate.entity.base.BaseEntity#equals(Object)},
+     * which compares by database ID (or by identity token for transient instances).
+     * Explicitly overridden here to satisfy static-analysis tools that require
+     * subclasses adding fields to declare equals/hashCode.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }

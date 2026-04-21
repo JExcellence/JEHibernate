@@ -32,25 +32,25 @@ package de.jexcellence.jehibernate.entity.base;
  * }
  * }</pre>
  * 
- * @param <ID> the type of the entity identifier
+ * @param <I> the type of the entity identifier
  * @since 1.0
  * @see BaseEntity
  */
-public interface Identifiable<ID> {
-    
+public interface Identifiable<I> {
+
     /**
      * Returns the identifier of this entity.
-     * 
+     *
      * @return the entity identifier, or null if the entity is new
      */
-    ID getId();
-    
+    I getId();
+
     /**
      * Sets the identifier of this entity.
-     * 
+     *
      * @param id the entity identifier
      */
-    void setId(ID id);
+    void setId(I id);
     
     /**
      * Checks if this entity is new (not yet persisted).
