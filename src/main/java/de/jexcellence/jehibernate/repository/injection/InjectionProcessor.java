@@ -90,6 +90,7 @@ public final class InjectionProcessor {
      * @param registry the repository registry to retrieve the repository from
      * @throws RepositoryException if the field cannot be accessed or set
      */
+    @SuppressWarnings("java:S3011") // Reflective field injection is the intended purpose of this method
     private static void injectField(Object target, Field field, RepositoryRegistry registry) {
         Class<?> fieldType = field.getType();
         

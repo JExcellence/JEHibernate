@@ -47,6 +47,16 @@ class UserRepository extends AbstractCrudRepository<User, Long> {
     public UserRepository(ExecutorService executor, EntityManagerFactory emf, Class<User> entityClass) {
         super(executor, emf, entityClass);
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 public class QuickStartExample {

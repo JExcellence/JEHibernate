@@ -109,11 +109,31 @@ class UserRepository extends AbstractCachedRepository<User, Long, String> {
                 .expireAfterAccess(true)
                 .build());
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
 }
 
 class ProductRepository extends AbstractCrudRepository<Product, Long> {
     public ProductRepository(ExecutorService executor, EntityManagerFactory emf, Class<Product> entityClass) {
         super(executor, emf, entityClass);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
     }
 }
 
@@ -177,6 +197,8 @@ public class SpringBootExample {
 
     // Simulates a Spring @Service
     static class UserService {
+        private static final String FIELD_EMAIL = "email";
+
         private final UserRepository userRepo;
 
         // @Autowired (constructor injection)
@@ -186,14 +208,14 @@ public class SpringBootExample {
 
         public User register(String email, String displayName) {
             // Check for duplicate
-            if (userRepo.findByKey("email", email).isPresent()) {
+            if (userRepo.findByKey(FIELD_EMAIL, email).isPresent()) {
                 throw new IllegalArgumentException("Email already registered: " + email);
             }
             return userRepo.create(new User(email, displayName));
         }
 
         public Optional<User> findByEmail(String email) {
-            return userRepo.findByKey("email", email);
+            return userRepo.findByKey(FIELD_EMAIL, email);
         }
 
         public PageResult<User> listActiveUsers(int page, int size) {
@@ -205,7 +227,7 @@ public class SpringBootExample {
 
         public List<User> searchUsers(String query) {
             return userRepo.query()
-                .orLike("email", "%" + query + "%")
+                .orLike(FIELD_EMAIL, "%" + query + "%")
                 .orLike("displayName", "%" + query + "%")
                 .orderBy("displayName")
                 .list();
