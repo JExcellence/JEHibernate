@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "de.jexcellence.hibernate"
-version = "3.0.3"
+version = "3.0.4"
 description = "Modern Hibernate/JPA utility library for Java 17+"
 
 val isSnapshot = version.toString().endsWith("SNAPSHOT")
