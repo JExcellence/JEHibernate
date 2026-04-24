@@ -31,31 +31,11 @@ class User extends LongIdEntity {
     public void setEmail(String email) { this.email = email; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
-    }
 }
 
 class UserRepository extends AbstractCrudRepository<User, Long> {
     public UserRepository(ExecutorService executor, EntityManagerFactory emf, Class<User> entityClass) {
         super(executor, emf, entityClass);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
     }
 }
 

@@ -47,16 +47,6 @@ class User extends LongIdEntity {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
-    }
 }
 
 @Entity
@@ -83,16 +73,6 @@ class Product extends LongIdEntity {
     public void setPrice(double price) { this.price = price; }
     public int getStock() { return stock; }
     public void setStock(int stock) { this.stock = stock; }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
-    }
 }
 
 // ============================================================================
@@ -109,31 +89,11 @@ class UserRepository extends AbstractCachedRepository<User, Long, String> {
                 .expireAfterAccess(true)
                 .build());
     }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
-    }
 }
 
 class ProductRepository extends AbstractCrudRepository<Product, Long> {
     public ProductRepository(ExecutorService executor, EntityManagerFactory emf, Class<Product> entityClass) {
         super(executor, emf, entityClass);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return super.equals(obj);
-    }
-
-    @Override
-    public int hashCode() {
-        return super.hashCode();
     }
 }
 
