@@ -29,7 +29,9 @@
       "Bash(curl -s \"https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-runtime/4.0.5/jaxb-runtime-4.0.5.pom\")",
       "Bash(grep -v \"build/\" find \"C:/Users/Privat/IdeaProjects/RaindropCentral\" -path \"*/dependency/*.yml\")",
       "Bash(grep -v \"build/\" find \"C:/Users/Privat/IdeaProjects/RaindropPlugins\" -path \"*/dependency/*.yml\")",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Bash(gh repo *)"
     ]
   }
 }

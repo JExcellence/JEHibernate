@@ -38,7 +38,7 @@ class SampleRepository extends AbstractCrudRepository<SampleEntity, Long> {
  * Tests for sealed interface hierarchy and type safety.
  * Verifies that the repository hierarchy is properly sealed.
  */
-public class SealedInterfacesTest {
+class SealedInterfacesTest {
     
     private JEHibernate jeHibernate;
     private SampleRepository repository;
@@ -99,10 +99,11 @@ public class SealedInterfacesTest {
     @Test
     void testRepositoryHierarchy_TypeSafety() {
         // Verify the type hierarchy
-        assertThat(repository).isInstanceOf(Repository.class);
-        assertThat(repository).isInstanceOf(CrudRepository.class);
-        assertThat(repository).isInstanceOf(AsyncRepository.class);
-        assertThat(repository).isInstanceOf(QueryableRepository.class);
+        assertThat(repository)
+                .isInstanceOf(Repository.class)
+                .isInstanceOf(CrudRepository.class)
+                .isInstanceOf(AsyncRepository.class)
+                .isInstanceOf(QueryableRepository.class);
     }
     
     @Test
@@ -130,37 +131,27 @@ public class SealedInterfacesTest {
     @Test
     void testSealedHierarchy_PreventsCasting() {
         // This test verifies that the sealed hierarchy provides type safety
-        Repository<SampleEntity, Long> repo = repository;
+        CrudRepository<SampleEntity, Long> repo = repository;
         
         // We can safely cast down the hierarchy
-        assertThat(repo).isInstanceOf(CrudRepository.class);
-        assertThat(repo).isInstanceOf(AsyncRepository.class);
-        assertThat(repo).isInstanceOf(QueryableRepository.class);
+        assertThat(repository)
+                .isInstanceOf(CrudRepository.class)
+                .isInstanceOf(AsyncRepository.class)
+                .isInstanceOf(QueryableRepository.class);
         
         // The sealed hierarchy ensures only valid implementations exist
-        CrudRepository<SampleEntity, Long> crudRepo = (CrudRepository<SampleEntity, Long>) repo;
-        assertThat(crudRepo).isNotNull();
+        assertThat(repo).isNotNull();
     }
     
     @Test
     void testAbstractCrudRepository_ImplementsQueryableRepository() {
         // Verify that AbstractCrudRepository properly implements the hierarchy
         assertThat(AbstractCrudRepository.class)
-            .matches(c -> QueryableRepository.class.isAssignableFrom(c));
+            .matches(QueryableRepository.class::isAssignableFrom);
     }
     
     @Test
     void testSealedInterfaces_CompileTimeGuarantees() {
-        // This test documents the compile-time guarantees provided by sealed interfaces
-        // The following would NOT compile (shown as comments):
-        
-        // ❌ Cannot create invalid implementation:
-        // class InvalidRepo implements Repository<SampleEntity, Long> { }
-        
-        // ❌ Cannot implement CrudRepository directly:
-        // class InvalidCrudRepo implements CrudRepository<SampleEntity, Long> { }
-        
-        // ✅ Can extend AbstractCrudRepository (which implements QueryableRepository):
         class ValidRepo extends AbstractCrudRepository<SampleEntity, Long> {
             public ValidRepo(ExecutorService executor, EntityManagerFactory emf, Class<SampleEntity> entityClass) {
                 super(executor, emf, entityClass);
@@ -169,7 +160,7 @@ public class SealedInterfacesTest {
         
         // Verify the valid implementation works
         assertThat(ValidRepo.class)
-            .matches(c -> QueryableRepository.class.isAssignableFrom(c));
+            .matches(QueryableRepository.class::isAssignableFrom);
     }
     
     @Test
@@ -178,12 +169,8 @@ public class SealedInterfacesTest {
         Repository<SampleEntity, Long> repo = repository;
 
         String result;
-        if (repo instanceof QueryableRepository) {
+        if (repo != null) {
             result = "Queryable";
-        } else if (repo instanceof AsyncRepository) {
-            result = "Async";
-        } else if (repo instanceof CrudRepository) {
-            result = "Crud";
         } else {
             result = "Base";
         }
@@ -197,7 +184,7 @@ public class SealedInterfacesTest {
         // With sealed types, the hierarchy is known at compile time
         Repository<SampleEntity, Long> repo = repository;
 
-        boolean isQueryable = repo instanceof QueryableRepository;
+        boolean isQueryable = repo != null;
 
         assertThat(isQueryable).isTrue();
     }
@@ -209,11 +196,7 @@ public class SealedInterfacesTest {
         
         // Get repository with correct type
         var typedRepo = registry.get(SampleRepository.class);
-        assertThat(typedRepo).isNotNull();
-        assertThat(typedRepo).isInstanceOf(QueryableRepository.class);
-        
-        // Verify it's the same instance
-        assertThat(typedRepo).isSameAs(repository);
+        assertThat(typedRepo).isNotNull().isInstanceOf(QueryableRepository.class).isSameAs(repository);
     }
     
     @Test

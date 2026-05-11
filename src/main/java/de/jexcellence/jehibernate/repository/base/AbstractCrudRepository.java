@@ -603,9 +603,7 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
      * @param transaction the transaction to rollback (may be null)
      */
     private void rollbackQuietly(EntityTransaction transaction) {
-        if (transaction == null || !transaction.isActive()) {
-            return;
-        }
+        if (transaction == null || !transaction.isActive()) return;
         try {
             transaction.rollback();
         } catch (Exception e) {

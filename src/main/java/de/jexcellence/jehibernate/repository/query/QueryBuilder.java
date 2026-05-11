@@ -433,12 +433,12 @@ public final class QueryBuilder<T> {
     @SuppressWarnings("unchecked")
     private void applySorting(CriteriaBuilder cb, CriteriaQuery<T> cq, Root<T> root) {
         if (sortOrders.isEmpty()) return;
-
-        List<Order> orders = new ArrayList<>(sortOrders.size());
-        for (SortOrder so : sortOrders) {
-            var path = Specifications.resolvePath(root, so.field());
-            orders.add(so.ascending() ? cb.asc(path) : cb.desc(path));
-        }
+        List<Order> orders = sortOrders.stream()
+            .map(so -> {
+                var path = Specifications.resolvePath(root, so.field());
+                return so.ascending() ? cb.asc(path) : cb.desc(path);
+            })
+            .toList();
         cq.orderBy(orders);
     }
 
