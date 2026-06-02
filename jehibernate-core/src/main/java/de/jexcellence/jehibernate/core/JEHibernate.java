@@ -3,6 +3,8 @@ package de.jexcellence.jehibernate.core;
 import de.jexcellence.jehibernate.config.ConfigurationBuilder;
 import de.jexcellence.jehibernate.config.PropertyLoader;
 import de.jexcellence.jehibernate.exception.TransactionException;
+import de.jexcellence.jehibernate.pool.HikariDataSourceFactory;
+import de.jexcellence.jehibernate.pool.PoolHealth;
 import de.jexcellence.jehibernate.repository.manager.RepositoryRegistry;
 import de.jexcellence.jehibernate.scanner.EntityScanner;
 import de.jexcellence.jehibernate.session.SessionContext;
@@ -13,6 +15,7 @@ import jakarta.persistence.EntityTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -93,7 +96,9 @@ public final class JEHibernate implements AutoCloseable {
     private final RepositoryRegistry repositoryRegistry;
     private final ExecutorService executorService;
     private final boolean ownsExecutor;
-    
+    private final DataSource dataSource;
+    private final boolean ownsDataSource;
+
     private JEHibernate(Builder builder) {
         if (builder.executorService != null) {
             this.executorService = builder.executorService;
@@ -102,14 +107,16 @@ public final class JEHibernate implements AutoCloseable {
             this.executorService = createDefaultExecutor();
             this.ownsExecutor = true;
         }
-        
+
         if (builder.autoScan && builder.basePackages.length > 0) {
             Set<Class<?>> entities = EntityScanner.scan(builder.basePackages);
             builder.configurationBuilder.registerEntities(entities);
             LOGGER.info("Auto-discovered {} entities", entities.size());
         }
-        
+
         this.entityManagerFactory = builder.configurationBuilder.build();
+        this.dataSource = builder.configurationBuilder.getManagedDataSource();
+        this.ownsDataSource = builder.configurationBuilder.ownsDataSource();
         this.repositoryRegistry = new RepositoryRegistry(this.executorService, this.entityManagerFactory);
         
         if (builder.autoScan && builder.basePackages.length > 0) {
@@ -202,6 +209,37 @@ public final class JEHibernate implements AutoCloseable {
      */
     public RepositoryRegistry repositories() {
         return repositoryRegistry;
+    }
+
+    /**
+     * Returns a point-in-time snapshot of connection-pool health.
+     * <p>
+     * When JEHibernate owns a HikariCP pool, the snapshot reports live active/idle/total
+     * connection counts and the number of threads waiting for a connection. When an external
+     * {@link DataSource} was supplied (e.g. by Spring Boot) or the pool is not HikariCP, the
+     * snapshot is {@link PoolHealth#unavailable()}.
+     * <p>
+     * <b>Example:</b>
+     * <pre>{@code
+     * PoolHealth health = jeHibernate.getPoolHealth();
+     * if (health.available() && health.threadsAwaitingConnection() > 0) {
+     *     LOGGER.warn("Pool saturation: {} threads waiting", health.threadsAwaitingConnection());
+     * }
+     * }</pre>
+     *
+     * @return the current pool health, never {@code null}
+     */
+    public PoolHealth getPoolHealth() {
+        return HikariDataSourceFactory.health(dataSource);
+    }
+
+    /**
+     * Returns the underlying {@link DataSource} (HikariCP pool or external).
+     *
+     * @return the data source backing this instance
+     */
+    public DataSource getDataSource() {
+        return dataSource;
     }
     
     /**
@@ -320,9 +358,26 @@ public final class JEHibernate implements AutoCloseable {
             entityManagerFactory.close();
             LOGGER.info("EntityManagerFactory closed");
         }
+        closeDataSourceQuietly();
         if (ownsExecutor && !executorService.isShutdown()) {
             executorService.shutdown();
             LOGGER.info("ExecutorService shut down");
+        }
+    }
+
+    /**
+     * Closes the connection pool when JEHibernate owns it. Externally supplied data sources
+     * are left untouched — their lifecycle belongs to the provider (e.g. Spring).
+     */
+    private void closeDataSourceQuietly() {
+        if (!ownsDataSource || !(dataSource instanceof AutoCloseable closeable)) {
+            return;
+        }
+        try {
+            closeable.close();
+            LOGGER.info("HikariCP pool closed");
+        } catch (Exception e) {
+            LOGGER.warn("Failed to close HikariCP pool", e);
         }
     }
     

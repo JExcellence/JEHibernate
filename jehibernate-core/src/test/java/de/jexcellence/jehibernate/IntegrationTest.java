@@ -166,7 +166,7 @@ public class IntegrationTest {
             new TestUser("bob", "bob@example.com")
         ));
         
-        var spec = Specifications.<TestUser>equal("active", true)
+        var spec = Specifications.<TestUser>equalTo("active", true)
             .and(Specifications.like("email", "%@example.com"));
         
         var users = userRepo.findAll(spec);

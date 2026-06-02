@@ -7,7 +7,7 @@
   <p align="center">
     <img src="https://img.shields.io/badge/Java-17%2B-orange" alt="Java 17+">
     <img src="https://img.shields.io/badge/Hibernate-7.x-59666C" alt="Hibernate 7.x">
-    <img src="https://img.shields.io/badge/Tests-78%20passing-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/Tests-85%20passing-brightgreen" alt="Tests">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="License">
   </p>
 </p>
@@ -18,6 +18,79 @@ JEHibernate wraps Hibernate ORM with a clean, fluent API that eliminates 65%+ of
 
 **Runs on:** Spigot, Paper, Folia, Spring Boot, standalone Java applications.
 **Requires:** Java 17+ (virtual threads auto-enabled on 21+). Hibernate 7.x, Jakarta Persistence 3.1+.
+
+---
+
+## 4.0 Highlights (breaking)
+
+4.0 is a **multi-module** release. Pick the modules you need:
+
+| Module | Use it for |
+|---|---|
+| `jehibernate-core` | **Required.** The library — repositories, sessions, pooling, migration. |
+| `jehibernate-spring-boot` | Spring Boot auto-configuration that reuses your `DataSource` bean. |
+| `jehibernate-plugin` | Spigot/Paper `PropertyLoader` data-folder convenience. |
+| `jehibernate-testing` | Testcontainers + fixtures (test scope only). |
+
+What changed (see [CHANGELOG](CHANGELOG.md) and `docs/adr/`):
+
+- **HikariCP** is the default connection pool. Tune via `PoolConfig`; inspect via
+  `jeHibernate.getPoolHealth()`.
+- **Flyway migrations** run before Hibernate boots (`V001__init.sql` under
+  `classpath:db/migration`). Liquibase is opt-in.
+- **`ddl-auto` now defaults to `validate`** (was `update`) — migrations own the schema.
+- Published coordinate is now `de.jexcellence.hibernate:jehibernate-core` (was `JEHibernate`).
+
+### Plugin quickstart (existing users)
+
+```kotlin
+implementation("de.jexcellence.hibernate:jehibernate-core:4.0.0")
+runtimeOnly("com.mysql:mysql-connector-j:9.3.0")
+// Keep 3.x schema behaviour if you are not ready for migrations yet:
+//   .configuration(c -> c.ddlAuto("update"))  — or set jehibernate.migration.enabled=false
+```
+
+```java
+var je = JEHibernate.fromProperties(getDataFolder(), "database", "hibernate.properties");
+var users = je.repositories().get(UserRepository.class);
+```
+
+### Spring Boot quickstart (new users)
+
+```kotlin
+implementation("de.jexcellence.hibernate:jehibernate-spring-boot:4.0.0")
+```
+
+```java
+@Configuration
+class JEHibernateConfig {
+    @Bean(destroyMethod = "close")
+    JEHibernate jeHibernate(DataSource dataSource) {
+        return JEHibernate.builder()
+            .configuration(c -> c
+                .database(DatabaseType.POSTGRESQL)
+                .url("jdbc:postgresql://localhost:5432/app")
+                .dataSource(dataSource)   // reuse Spring's pool — JEHibernate won't close it
+                .ddlAuto("validate"))
+            .scanPackages("com.example")
+            .build();
+    }
+}
+```
+
+### Migration guide
+
+| Property | Default | Meaning |
+|---|---|---|
+| `jehibernate.migration.enabled` | `true` | Run migrations at bootstrap |
+| `jehibernate.migration.tool` | `flyway` | `flyway` \| `liquibase` \| `none` |
+| `jehibernate.migration.location` | `classpath:db/migration` | Flyway location / Liquibase changelog path |
+| `jehibernate.pool.maximumPoolSize` | `10` | HikariCP max connections |
+| `jehibernate.pool.minimumIdle` | `2` | HikariCP min idle connections |
+
+Add `org.flywaydb:flyway-core` to the classpath to enable Flyway; omit it and migration is a
+silent no-op. Put SQL files in `src/main/resources/db/migration/V001__init.sql`,
+`V002__...`, etc.
 
 ## Table of Contents
 
@@ -61,7 +134,7 @@ JEHibernate wraps Hibernate ORM with a clean, fluent API that eliminates 65%+ of
 
 ```kotlin
 dependencies {
-    implementation("de.jexcellence.hibernate:JEHibernate:3.0.1")
+    implementation("de.jexcellence.hibernate:jehibernate-core:4.0.0")
 
     // Pick your database driver
     runtimeOnly("com.h2database:h2:2.4.240")         // H2 (embedded, dev/testing)

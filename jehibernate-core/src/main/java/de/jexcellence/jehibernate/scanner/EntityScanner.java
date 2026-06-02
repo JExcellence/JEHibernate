@@ -104,13 +104,14 @@ public final class EntityScanner {
                     .setScanners(Scanners.TypesAnnotated)
                     .filterInputsBy(new FilterBuilder().includePackage(basePackage));
 
+            // Enumerate the package via the classloader so consumer/test classes located in a
+            // different output root than the JEHibernate jar are discovered too. Works for
+            // standard URLClassLoader subclasses; may yield nothing on exotic classloaders.
+            config.forPackage(basePackage, pluginClassLoader);
             if (pluginJarUrl != null) {
+                // Additionally scan the code-source URL of JEHibernate itself. In a shaded plugin
+                // jar this is where the entity classes live; Reflections de-duplicates the URLs.
                 config.addUrls(pluginJarUrl);
-            } else {
-                // Fallback: ask the classloader to enumerate URLs for this package.
-                // Works for standard URLClassLoader subclasses; may yield no URLs on
-                // exotic classloaders (e.g. early Paper builds).
-                config.forPackage(basePackage, pluginClassLoader);
             }
 
             final Reflections reflections = new Reflections(config);

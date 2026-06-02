@@ -12,6 +12,14 @@ dependencyResolutionManagement {
         mavenLocal()
         mavenCentral()
         google()
+        // Paper API (jehibernate-plugin, compileOnly)
+        maven("https://repo.papermc.io/repository/maven-public/")
     }
 }
+
 rootProject.name = "JEHibernate"
+
+include("jehibernate-core")
+include("jehibernate-spring-boot")
+include("jehibernate-plugin")
+include("jehibernate-testing")

@@ -2,8 +2,12 @@ package de.jexcellence.jehibernate.config;
 
 import de.jexcellence.jehibernate.exception.ConfigurationException;
 import de.jexcellence.jehibernate.exception.JEHibernateException;
+import de.jexcellence.jehibernate.migration.MigrationConfig;
+import de.jexcellence.jehibernate.migration.MigrationSupport;
 import de.jexcellence.jehibernate.naming.NamingStrategy;
 import de.jexcellence.jehibernate.naming.SnakeCaseStrategy;
+import de.jexcellence.jehibernate.pool.HikariDataSourceFactory;
+import de.jexcellence.jehibernate.pool.PoolConfig;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
@@ -12,7 +16,10 @@ import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.AvailableSettings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -68,10 +75,18 @@ import java.util.Set;
  */
 public final class ConfigurationBuilder {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConfigurationBuilder.class);
+
     private DatabaseConfig databaseConfig;
     private final Map<String, Object> properties = new HashMap<>();
     private NamingStrategy namingStrategy = new SnakeCaseStrategy();
     private final Set<Class<?>> entityClasses = new HashSet<>();
+
+    private PoolConfig poolConfig = PoolConfig.defaults();
+    private MigrationConfig migrationConfig = MigrationConfig.defaults();
+    private DataSource externalDataSource;
+    private DataSource managedDataSource;
+    private boolean ownsDataSource;
 
     private ConfigurationBuilder() {
     }
@@ -169,21 +184,72 @@ public final class ConfigurationBuilder {
     }
 
     /**
-     * Configures Hibernate's built-in connection pooling (Agroal).
-     * Requires {@code hibernate-agroal} and {@code agroal-pool} on the classpath.
+     * Configures the HikariCP connection pool (the default pool since 4.0).
      * <p>
-     * If these dependencies are not present, Hibernate falls back to its internal pool
-     * with max-size configuration only.
+     * Convenience overload that sets only the idle/max bounds; all other knobs keep their
+     * {@link PoolConfig#defaults() defaults}. For full control use {@link #pool(PoolConfig)}.
+     * <p>
+     * <b>Behavioural change from 3.x:</b> earlier versions delegated to Hibernate's Agroal
+     * provider via {@code hibernate.agroal.*} properties. JEHibernate now owns a
+     * {@link com.zaxxer.hikari.HikariDataSource} directly (see ADR-0003), which enables
+     * {@code getPoolHealth()}, deterministic shutdown, and external-{@link DataSource} reuse.
      *
-     * @param minSize minimum number of connections in the pool
+     * @param minIdle minimum number of idle connections
      * @param maxSize maximum number of connections in the pool
      * @return this builder for chaining
      */
-    public ConfigurationBuilder connectionPool(int minSize, int maxSize) {
-        property("hibernate.agroal.minSize", minSize);
-        property("hibernate.agroal.maxSize", maxSize);
-        property("hibernate.agroal.acquisitionTimeout", "PT5S");
-        property("hibernate.agroal.validationTimeout", "PT2S");
+    public ConfigurationBuilder connectionPool(int minIdle, int maxSize) {
+        this.poolConfig = PoolConfig.builder()
+            .minimumIdle(minIdle)
+            .maximumPoolSize(maxSize)
+            .build();
+        return this;
+    }
+
+    /**
+     * Sets the full HikariCP pool configuration.
+     *
+     * @param poolConfig the pool tuning parameters (must not be {@code null})
+     * @return this builder for chaining
+     */
+    public ConfigurationBuilder pool(PoolConfig poolConfig) {
+        if (poolConfig == null) {
+            throw new ConfigurationException("PoolConfig must not be null");
+        }
+        this.poolConfig = poolConfig;
+        return this;
+    }
+
+    /**
+     * Supplies an externally managed {@link DataSource} (e.g. a Spring Boot {@code DataSource}
+     * bean). When set, JEHibernate does <b>not</b> create its own HikariCP pool and does
+     * <b>not</b> close the supplied data source on shutdown — its lifecycle stays with the
+     * provider. {@link PoolConfig} is ignored in this case.
+     *
+     * @param dataSource the data source to use (must not be {@code null})
+     * @return this builder for chaining
+     */
+    public ConfigurationBuilder dataSource(DataSource dataSource) {
+        if (dataSource == null) {
+            throw new ConfigurationException("DataSource must not be null");
+        }
+        this.externalDataSource = dataSource;
+        return this;
+    }
+
+    /**
+     * Sets the schema-migration configuration. By default migrations run with Flyway from
+     * {@code classpath:db/migration} before the {@code SessionFactory} is built. See
+     * {@link MigrationConfig} and {@link MigrationSupport}.
+     *
+     * @param migrationConfig the migration configuration (must not be {@code null})
+     * @return this builder for chaining
+     */
+    public ConfigurationBuilder migration(MigrationConfig migrationConfig) {
+        if (migrationConfig == null) {
+            throw new ConfigurationException("MigrationConfig must not be null");
+        }
+        this.migrationConfig = migrationConfig;
         return this;
     }
 
@@ -243,6 +309,11 @@ public final class ConfigurationBuilder {
             databaseConfig = builder.build();
         }
 
+        // Pool tuning: merge jehibernate.pool.* over the current pool config.
+        this.poolConfig = PoolConfig.fromProperties(props, this.poolConfig);
+        // Migration: merge jehibernate.migration.* over the current migration config.
+        this.migrationConfig = MigrationConfig.fromProperties(props, this.migrationConfig);
+
         props.forEach((key, value) -> {
             String k = key.toString();
             // Pass through all hibernate.* properties except physical_naming_strategy —
@@ -272,6 +343,16 @@ public final class ConfigurationBuilder {
      */
     public EntityManagerFactory build() {
         validate();
+        resolveDataSource();
+
+        try {
+            // Migrations own the schema and run before Hibernate validates it. No-op when the
+            // selected tool is absent or migration is disabled (see MigrationSupport).
+            MigrationSupport.run(managedDataSource, migrationConfig);
+        } catch (RuntimeException e) {
+            closeManagedDataSourceQuietly();
+            throw e;
+        }
 
         final ClassLoader pluginClassLoader = ConfigurationBuilder.class.getClassLoader();
 
@@ -283,7 +364,51 @@ public final class ConfigurationBuilder {
             return buildWithRegistry(bsr);
         } catch (RuntimeException e) {
             bsr.close();
+            closeManagedDataSourceQuietly();
             throw e;
+        }
+    }
+
+    /**
+     * The {@link DataSource} JEHibernate will use — either the externally supplied one or a
+     * freshly created HikariCP pool. Valid only after {@link #build()} has been invoked.
+     *
+     * @return the resolved data source, or {@code null} if {@link #build()} has not run yet
+     */
+    public DataSource getManagedDataSource() {
+        return managedDataSource;
+    }
+
+    /**
+     * Whether JEHibernate owns (and must therefore close) the resolved {@link DataSource}.
+     * {@code false} when an external data source was supplied via {@link #dataSource(DataSource)}.
+     *
+     * @return {@code true} if the data source must be closed on shutdown
+     */
+    public boolean ownsDataSource() {
+        return ownsDataSource;
+    }
+
+    private void resolveDataSource() {
+        if (externalDataSource != null) {
+            this.managedDataSource = externalDataSource;
+            this.ownsDataSource = false;
+            LOGGER.info("Using externally supplied DataSource — JEHibernate will not manage its lifecycle");
+        } else {
+            this.managedDataSource = HikariDataSourceFactory.create(databaseConfig, poolConfig);
+            this.ownsDataSource = true;
+            LOGGER.info("Created HikariCP pool [max={}, minIdle={}] for {}",
+                poolConfig.maximumPoolSize(), poolConfig.minimumIdle(), databaseConfig.type());
+        }
+    }
+
+    private void closeManagedDataSourceQuietly() {
+        if (ownsDataSource && managedDataSource instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                LOGGER.warn("Failed to close HikariCP pool after bootstrap failure", e);
+            }
         }
     }
 
@@ -330,23 +455,19 @@ public final class ConfigurationBuilder {
     private Map<String, Object> buildConfiguration() {
         Map<String, Object> config = new HashMap<>(properties);
 
-        // JDBC connection — Hibernate 7 processes jakarta.persistence.jdbc.* in both the
-        // JPA provider path and the native StandardServiceRegistry path (DriverManager
-        // connection provider tries the jakarta key first, then hibernate.connection.*).
-        config.put(AvailableSettings.JAKARTA_JDBC_URL, databaseConfig.url());
-        config.put(AvailableSettings.JAKARTA_JDBC_DRIVER, databaseConfig.driver());
+        // Connections are served by the JEHibernate-owned DataSource (HikariCP by default, or an
+        // externally supplied DataSource). Hibernate uses DatasourceConnectionProviderImpl for it.
+        // The resource-local (non-JTA) data source slot is correct for JEHibernate's transaction
+        // model. The dialect is still set explicitly so bootstrap needs no eager connection probe.
+        config.put(AvailableSettings.JAKARTA_NON_JTA_DATASOURCE, managedDataSource);
         config.put(AvailableSettings.DIALECT, databaseConfig.dialect());
-
-        if (databaseConfig.username() != null) {
-            config.put(AvailableSettings.JAKARTA_JDBC_USER, databaseConfig.username());
-        }
-        if (databaseConfig.password() != null) {
-            config.put(AvailableSettings.JAKARTA_JDBC_PASSWORD, databaseConfig.password());
-        }
 
         // Sensible defaults — caller-supplied values already in `properties` take precedence
         // because we copied them into `config` above before these putIfAbsent calls.
-        config.putIfAbsent(AvailableSettings.HBM2DDL_AUTO, "update");
+        // ddl-auto defaults to "validate" since 4.0 (was "update"): migrations now own the
+        // schema (TODO-2 / ADR-0002). Callers that still want Hibernate to manage DDL set
+        // ddlAuto("update") explicitly.
+        config.putIfAbsent(AvailableSettings.HBM2DDL_AUTO, "validate");
         config.putIfAbsent(AvailableSettings.SHOW_SQL, false);
         config.putIfAbsent(AvailableSettings.STATEMENT_BATCH_SIZE, 25);
         config.putIfAbsent(AvailableSettings.ORDER_INSERTS, true);

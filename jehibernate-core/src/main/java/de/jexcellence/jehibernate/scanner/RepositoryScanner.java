@@ -102,10 +102,13 @@ public final class RepositoryScanner {
                 .setScanners(Scanners.SubTypes)
                 .filterInputsBy(new FilterBuilder().includePackage(basePackage));
 
+        // Enumerate the package via the classloader so consumer/test repositories located in a
+        // different output root than the JEHibernate jar are discovered too.
+        config.forPackage(basePackage, pluginClassLoader);
         if (pluginJarUrl != null) {
+            // Additionally scan JEHibernate's own code-source URL (the shaded plugin jar in the
+            // plugin use-case). Reflections de-duplicates the URLs.
             config.addUrls(pluginJarUrl);
-        } else {
-            config.forPackage(basePackage, pluginClassLoader);
         }
 
         final Reflections reflections = new Reflections(config);
