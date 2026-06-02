@@ -30,8 +30,16 @@ schema-management defaults changed. See the migration notes below.
   - `ConfigurationBuilder.migration(MigrationConfig)`; properties `jehibernate.migration.{enabled,
     tool,location}`.
   - Migrations run before `SessionFactory.build()`. Absent tool → silent no-op.
+- **Lazy-loading / EntityGraph helpers** (TODO-3):
+  - `AbstractCrudRepository.findByIdWithGraph(id, paths...)`, `findAllWithGraph(paths...)`,
+    `findByIdWithNamedGraph(id, name)` — fetch named associations in a single query (no N+1),
+    applied as a JPA `loadgraph` hint. Dot-separated paths supported for nested graphs.
+  - `docs/lazy-loading-guide.md` with a when-to-use decision table (scoping vs read-only vs
+    EntityGraph vs OSIV). OSIV is documented as a copy-ready last-resort pattern, deliberately
+    not shipped as a bean.
 - Integration tests: `PoolIntegrationTest` (50 parallel queries, health, defaults),
-  `MigrationIntegrationTest` (apply-on-empty, no-op-on-restart, disabled, Liquibase config).
+  `MigrationIntegrationTest` (apply-on-empty, no-op-on-restart, disabled, Liquibase config),
+  `EntityGraphIntegrationTest` (single-query collection fetch verified via Hibernate Statistics).
 - ADRs under `docs/adr/`.
 
 ### Changed

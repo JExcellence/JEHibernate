@@ -7,7 +7,7 @@
   <p align="center">
     <img src="https://img.shields.io/badge/Java-17%2B-orange" alt="Java 17+">
     <img src="https://img.shields.io/badge/Hibernate-7.x-59666C" alt="Hibernate 7.x">
-    <img src="https://img.shields.io/badge/Tests-85%20passing-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/Tests-86%20passing-brightgreen" alt="Tests">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="License">
   </p>
 </p>

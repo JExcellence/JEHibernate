@@ -8,10 +8,12 @@ import de.jexcellence.jehibernate.repository.query.QueryBuilder;
 import de.jexcellence.jehibernate.repository.query.Specification;
 import de.jexcellence.jehibernate.session.SessionContext;
 import de.jexcellence.jehibernate.transaction.TransactionTemplate;
+import jakarta.persistence.EntityGraph;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.PersistenceException;
+import jakarta.persistence.Subgraph;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -191,6 +194,88 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
     @Override
     public CompletableFuture<Optional<T>> findByIdAsync(I id) {
         return CompletableFuture.supplyAsync(() -> findById(id), executorService);
+    }
+
+    private static final String LOAD_GRAPH_HINT = "jakarta.persistence.loadgraph";
+
+    /**
+     * Finds an entity by ID and eagerly fetches the given association paths in a single query,
+     * avoiding the N+1 problem without needing a session scope.
+     * <p>
+     * Paths may be nested with dots, e.g. {@code "orders.items"}. The graph is applied as a JPA
+     * {@code loadgraph} hint, so listed attributes are fetched eagerly while everything else keeps
+     * its mapped fetch type.
+     * <p>
+     * <b>Example:</b>
+     * <pre>{@code
+     * Optional<Order> order = orderRepo.findByIdWithGraph(1L, "items");
+     * order.ifPresent(o -> o.getItems().size()); // already loaded, no extra query
+     * }</pre>
+     *
+     * @param id             the entity ID
+     * @param attributePaths association paths to fetch (dot-separated for nested paths)
+     * @return the entity with the requested associations loaded, or empty if not found
+     */
+    public Optional<T> findByIdWithGraph(I id, String... attributePaths) {
+        return executeInTransaction(em -> {
+            EntityGraph<T> graph = buildEntityGraph(em, attributePaths);
+            return Optional.ofNullable(em.find(entityClass, id, Map.of(LOAD_GRAPH_HINT, graph)));
+        });
+    }
+
+    /**
+     * Finds an entity by ID using a {@link jakarta.persistence.NamedEntityGraph} defined on the
+     * entity, applied as a {@code loadgraph} hint.
+     *
+     * @param id              the entity ID
+     * @param entityGraphName the name of a {@code @NamedEntityGraph} declared on the entity
+     * @return the entity with the named graph loaded, or empty if not found
+     */
+    public Optional<T> findByIdWithNamedGraph(I id, String entityGraphName) {
+        return executeInTransaction(em -> {
+            EntityGraph<?> graph = em.getEntityGraph(entityGraphName);
+            return Optional.ofNullable(em.find(entityClass, id, Map.of(LOAD_GRAPH_HINT, graph)));
+        });
+    }
+
+    /**
+     * Loads all entities, eagerly fetching the given association paths in a single query.
+     * Use for bounded bulk reads where the N+1 problem would otherwise occur.
+     *
+     * @param attributePaths association paths to fetch (dot-separated for nested paths)
+     * @return all entities with the requested associations loaded
+     */
+    public List<T> findAllWithGraph(String... attributePaths) {
+        return executeInTransaction(em -> {
+            EntityGraph<T> graph = buildEntityGraph(em, attributePaths);
+            CriteriaBuilder cb = em.getCriteriaBuilder();
+            CriteriaQuery<T> cq = cb.createQuery(entityClass);
+            cq.select(cq.from(entityClass));
+            return em.createQuery(cq)
+                .setHint(LOAD_GRAPH_HINT, graph)
+                .getResultList();
+        });
+    }
+
+    private EntityGraph<T> buildEntityGraph(EntityManager em, String... attributePaths) {
+        EntityGraph<T> graph = em.createEntityGraph(entityClass);
+        for (String path : attributePaths) {
+            addPath(graph, path.split("\\."));
+        }
+        return graph;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void addPath(EntityGraph<T> graph, String[] segments) {
+        if (segments.length == 1) {
+            graph.addAttributeNodes(segments[0]);
+            return;
+        }
+        Subgraph subgraph = graph.addSubgraph(segments[0]);
+        for (int i = 1; i < segments.length - 1; i++) {
+            subgraph = subgraph.addSubgraph(segments[i]);
+        }
+        subgraph.addAttributeNodes(segments[segments.length - 1]);
     }
     
     @Override
