@@ -37,9 +37,22 @@ schema-management defaults changed. See the migration notes below.
   - `docs/lazy-loading-guide.md` with a when-to-use decision table (scoping vs read-only vs
     EntityGraph vs OSIV). OSIV is documented as a copy-ready last-resort pattern, deliberately
     not shipped as a bean.
+- **Multi-tenancy** (TODO-5, ADR-0004), off by default:
+  - `MultiTenancyStrategy` (NONE/DATABASE/SCHEMA/DISCRIMINATOR), `MultiTenancyConfig`,
+    `ConfigurationBuilder.multiTenancy(...)`.
+  - `TenantContext` (thread-local, nesting `AutoCloseable` scope), `TenantResolver` SPI,
+    `TenantContextResolver` (Hibernate `CurrentTenantIdentifierResolver` adapter with strict
+    leak-guard that throws when no tenant is bound).
+  - `SchemaMultiTenantConnectionProvider` (one shared pool, per-tenant `setSchema`, reset on
+    release), `DatabaseMultiTenantConnectionProvider` (tenant → DataSource).
+  - `docs/multi-tenancy-guide.md`.
+  - Note: TODO-4 (Envers audit) is skipped, so the planned `tenant_id` column on the audit
+    revision entity is deferred with it.
 - Integration tests: `PoolIntegrationTest` (50 parallel queries, health, defaults),
   `MigrationIntegrationTest` (apply-on-empty, no-op-on-restart, disabled, Liquibase config),
-  `EntityGraphIntegrationTest` (single-query collection fetch verified via Hibernate Statistics).
+  `EntityGraphIntegrationTest` (single-query collection fetch verified via Hibernate Statistics),
+  `DiscriminatorMultiTenancyTest` (tenant isolation, leak-guard throws, thread switch, shared pool),
+  `MultiTenantConnectionProviderTest` (SCHEMA/DATABASE provider unit coverage).
 - ADRs under `docs/adr/`.
 
 ### Changed

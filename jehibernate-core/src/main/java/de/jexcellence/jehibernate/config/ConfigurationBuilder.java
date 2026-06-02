@@ -8,6 +8,11 @@ import de.jexcellence.jehibernate.naming.NamingStrategy;
 import de.jexcellence.jehibernate.naming.SnakeCaseStrategy;
 import de.jexcellence.jehibernate.pool.HikariDataSourceFactory;
 import de.jexcellence.jehibernate.pool.PoolConfig;
+import de.jexcellence.jehibernate.tenant.DatabaseMultiTenantConnectionProvider;
+import de.jexcellence.jehibernate.tenant.MultiTenancyConfig;
+import de.jexcellence.jehibernate.tenant.MultiTenancyStrategy;
+import de.jexcellence.jehibernate.tenant.SchemaMultiTenantConnectionProvider;
+import de.jexcellence.jehibernate.tenant.TenantContextResolver;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.boot.Metadata;
 import org.hibernate.boot.MetadataSources;
@@ -16,6 +21,7 @@ import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.cfg.MultiTenancySettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,6 +90,7 @@ public final class ConfigurationBuilder {
 
     private PoolConfig poolConfig = PoolConfig.defaults();
     private MigrationConfig migrationConfig = MigrationConfig.defaults();
+    private MultiTenancyConfig multiTenancyConfig = MultiTenancyConfig.disabled();
     private DataSource externalDataSource;
     private DataSource managedDataSource;
     private boolean ownsDataSource;
@@ -250,6 +257,23 @@ public final class ConfigurationBuilder {
             throw new ConfigurationException("MigrationConfig must not be null");
         }
         this.migrationConfig = migrationConfig;
+        return this;
+    }
+
+    /**
+     * Sets the multi-tenancy configuration. Default is {@link MultiTenancyConfig#disabled()}
+     * (single-tenant). For SCHEMA/DATABASE a {@code MultiTenantConnectionProvider} is wired over the
+     * resolved pool; for DISCRIMINATOR only the tenant resolver is wired (entities use
+     * {@code @TenantId}). See the multi-tenancy guide.
+     *
+     * @param multiTenancyConfig the configuration (must not be {@code null})
+     * @return this builder for chaining
+     */
+    public ConfigurationBuilder multiTenancy(MultiTenancyConfig multiTenancyConfig) {
+        if (multiTenancyConfig == null) {
+            throw new ConfigurationException("MultiTenancyConfig must not be null");
+        }
+        this.multiTenancyConfig = multiTenancyConfig;
         return this;
     }
 
@@ -445,6 +469,36 @@ public final class ConfigurationBuilder {
     }
 
     /**
+     * Wires Hibernate's native multi-tenancy settings according to {@link #multiTenancyConfig}.
+     * NONE leaves single-tenant behaviour untouched. SCHEMA/DATABASE register a
+     * {@code MultiTenantConnectionProvider} over the resolved pool; DISCRIMINATOR registers only the
+     * tenant resolver ({@code @TenantId} on entities does the filtering).
+     */
+    private void applyMultiTenancy(Map<String, Object> config) {
+        MultiTenancyStrategy strategy = multiTenancyConfig.strategy();
+        if (strategy == MultiTenancyStrategy.NONE) {
+            return;
+        }
+
+        config.put(MultiTenancySettings.MULTI_TENANT_IDENTIFIER_RESOLVER, new TenantContextResolver(
+            multiTenancyConfig.resolver(),
+            multiTenancyConfig.strict(),
+            multiTenancyConfig.defaultTenantId()
+        ));
+
+        switch (strategy) {
+            case SCHEMA -> config.put(
+                MultiTenancySettings.MULTI_TENANT_CONNECTION_PROVIDER,
+                new SchemaMultiTenantConnectionProvider(managedDataSource, multiTenancyConfig.defaultSchema()));
+            case DATABASE -> config.put(
+                MultiTenancySettings.MULTI_TENANT_CONNECTION_PROVIDER,
+                new DatabaseMultiTenantConnectionProvider(multiTenancyConfig.tenantDataSources(), managedDataSource));
+            case DISCRIMINATOR -> LOGGER.info("Multi-tenancy: DISCRIMINATOR - entities use @TenantId, resolver wired");
+            default -> throw new ConfigurationException("Unsupported multi-tenancy strategy: " + strategy);
+        }
+    }
+
+    /**
      * Assembles the settings map passed to {@link StandardServiceRegistryBuilder}.
      * <p>
      * {@code PHYSICAL_NAMING_STRATEGY} is intentionally omitted — it is applied as a live
@@ -457,10 +511,16 @@ public final class ConfigurationBuilder {
 
         // Connections are served by the JEHibernate-owned DataSource (HikariCP by default, or an
         // externally supplied DataSource). Hibernate uses DatasourceConnectionProviderImpl for it.
-        // The resource-local (non-JTA) data source slot is correct for JEHibernate's transaction
-        // model. The dialect is still set explicitly so bootstrap needs no eager connection probe.
-        config.put(AvailableSettings.JAKARTA_NON_JTA_DATASOURCE, managedDataSource);
+        // SCHEMA/DATABASE multi-tenancy instead routes connections through a
+        // MultiTenantConnectionProvider, so the plain data source slot is omitted in those cases.
+        MultiTenancyStrategy strategy = multiTenancyConfig.strategy();
+        boolean usesConnectionProvider =
+            strategy == MultiTenancyStrategy.SCHEMA || strategy == MultiTenancyStrategy.DATABASE;
+        if (!usesConnectionProvider) {
+            config.put(AvailableSettings.JAKARTA_NON_JTA_DATASOURCE, managedDataSource);
+        }
         config.put(AvailableSettings.DIALECT, databaseConfig.dialect());
+        applyMultiTenancy(config);
 
         // Sensible defaults — caller-supplied values already in `properties` take precedence
         // because we copied them into `config` above before these putIfAbsent calls.

@@ -7,7 +7,7 @@
   <p align="center">
     <img src="https://img.shields.io/badge/Java-17%2B-orange" alt="Java 17+">
     <img src="https://img.shields.io/badge/Hibernate-7.x-59666C" alt="Hibernate 7.x">
-    <img src="https://img.shields.io/badge/Tests-86%20passing-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/Tests-95%20passing-brightgreen" alt="Tests">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="License">
   </p>
 </p>
@@ -91,6 +91,22 @@ class JEHibernateConfig {
 Add `org.flywaydb:flyway-core` to the classpath to enable Flyway; omit it and migration is a
 silent no-op. Put SQL files in `src/main/resources/db/migration/V001__init.sql`,
 `V002__...`, etc.
+
+### Multi-tenancy (optional, off by default)
+
+```java
+// DISCRIMINATOR: a @TenantId column on entities; strict leak-guard throws if no tenant is bound.
+config.multiTenancy(MultiTenancyConfig.discriminator());
+```
+
+```java
+try (var ignored = TenantContext.open("acme")) {
+    noteRepo.findAll();   // sees only acme's data
+}
+```
+
+Strategies: `DISCRIMINATOR` (row-level), `SCHEMA` (schema-per-tenant, shared pool), `DATABASE`
+(database-per-tenant). Full details in [docs/multi-tenancy-guide.md](docs/multi-tenancy-guide.md).
 
 ## Table of Contents
 
