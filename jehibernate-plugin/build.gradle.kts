@@ -4,6 +4,11 @@ plugins {
 
 description = "JEHibernate plugin helpers — Spigot/Paper convenience (PropertyLoader from plugin data folder)"
 
+// Paper 1.21 targets Java 21; this module follows the Paper runtime (core stays at release 17).
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(21)
+}
+
 dependencies {
     // ── Implementation ──
     api(project(":jehibernate-core"))

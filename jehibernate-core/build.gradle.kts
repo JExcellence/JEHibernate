@@ -27,8 +27,12 @@ dependencies {
     compileOnly(libs.liquibase.core)
     compileOnly(libs.hibernate.jcache)
 
+    // SLF4J API: bundled as a transitive dependency (4.0) so standalone/Spring consumers get the
+    // logging facade without manual setup. Plugins already have it provided by Paper (benign
+    // duplicate). Consumers still choose their own binding; tests use slf4j-simple.
+    implementation(libs.slf4j.api)
+
     // ── Compile-only: API contracts / drivers provided by the host ──
-    compileOnly(libs.slf4j.api)
     compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.postgresql)
     compileOnly(libs.mysql)

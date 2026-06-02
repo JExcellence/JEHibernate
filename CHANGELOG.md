@@ -53,6 +53,25 @@ schema-management defaults changed. See the migration notes below.
   `EntityGraphIntegrationTest` (single-query collection fetch verified via Hibernate Statistics),
   `DiscriminatorMultiTenancyTest` (tenant isolation, leak-guard throws, thread switch, shared pool),
   `MultiTenantConnectionProviderTest` (SCHEMA/DATABASE provider unit coverage).
+- **Testing module** `jehibernate-testing` (TODO-6):
+  - `@JEHibernateTest` + `JEHibernateExtension` (JUnit 5): boots JEHibernate against H2 or a
+    Testcontainers container (PostgreSQL/MySQL/MariaDB/MSSQL), injects `JEHibernate`/
+    `EntityManagerFactory` as test parameters, resets the DB after each test.
+  - `TestDatabase`, `DatabaseReset` (NONE/TRUNCATE_ALL/DROP_CREATE/ROLLBACK_TX, FK-aware via
+    Hibernate `SchemaManager`), `Fixtures` + `Fixtures.Builder` fixture pattern.
+  - Container-backed tests skip (not fail) when Docker is unavailable.
+  - `docs/testing-guide.md`. The Spring `@JEHibernateRepositoryTest` slice is deferred until the
+    Spring Boot auto-configuration exists.
+- **Plugin-bias decoupling** (TODO-7):
+  - `PropertyLoader.fromClasspath(String)` and `fromFile(Path)` named entry points in core.
+  - `PluginPropertyLoader.fromPluginDataFolder(...)` in `jehibernate-plugin` (the File/data-folder
+    convenience now lives in the plugin module).
+  - `slf4j-api` is now an `implementation` dependency of core (bundled transitively) so
+    standalone/Spring consumers get the logging facade without manual setup.
+  - `examples/spring-boot-demo/` (bootstrap < 50 lines) and `examples/spigot-plugin-demo/`
+    (unchanged plugin API) added; `jehibernate-plugin` targets Java 21 (Paper runtime).
+- Integration/extension tests: `H2JEHibernateExtensionTest` (boot + reset between tests),
+  `PostgresJEHibernateExtensionIT` (Testcontainers, Docker-gated).
 - ADRs under `docs/adr/`.
 
 ### Changed

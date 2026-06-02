@@ -12,10 +12,8 @@ allprojects {
 subprojects {
     apply(plugin = "java-library")
 
-    repositories {
-        mavenLocal()
-        mavenCentral()
-    }
+    // Repositories are declared centrally in settings.gradle.kts
+    // (dependencyResolutionManagement) so the Paper repo reaches jehibernate-plugin.
 
     extensions.configure<JavaPluginExtension> {
         toolchain {

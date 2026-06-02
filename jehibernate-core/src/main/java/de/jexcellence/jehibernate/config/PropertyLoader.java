@@ -46,13 +46,60 @@ public final class PropertyLoader {
     
     private PropertyLoader() {
     }
-    
+
+    /**
+     * Loads properties exclusively from a classpath resource (no filesystem lookup).
+     * The Spring Boot / standalone default.
+     *
+     * @param resource the classpath resource name (e.g. {@code "hibernate.properties"})
+     * @return the loaded properties
+     * @throws ConfigurationException if the resource cannot be found or loaded
+     */
+    public static Properties fromClasspath(String resource) {
+        try (InputStream stream = PropertyLoader.class.getClassLoader().getResourceAsStream(resource)) {
+            if (stream == null) {
+                throw new ConfigurationException("Classpath resource not found: " + resource);
+            }
+            Properties properties = new Properties();
+            properties.load(stream);
+            LOGGER.info("Loaded properties from classpath: {}", resource);
+            return properties;
+        } catch (IOException e) {
+            throw new ConfigurationException("Failed to load classpath resource: " + resource, e);
+        }
+    }
+
+    /**
+     * Loads properties exclusively from a filesystem path (no classpath fallback). Generic entry
+     * point for non-plugin deployments.
+     *
+     * @param path the filesystem path to the properties file
+     * @return the loaded properties
+     * @throws ConfigurationException if the file cannot be found or loaded
+     */
+    public static Properties fromFile(Path path) {
+        if (!Files.exists(path)) {
+            throw new ConfigurationException("Properties file not found: " + path.toAbsolutePath());
+        }
+        try (InputStream stream = Files.newInputStream(path)) {
+            Properties properties = new Properties();
+            properties.load(stream);
+            LOGGER.info("Loaded properties from file: {}", path.toAbsolutePath());
+            return properties;
+        } catch (IOException e) {
+            throw new ConfigurationException("Failed to load properties from file: " + path.toAbsolutePath(), e);
+        }
+    }
+
     /**
      * Loads properties from the specified file path.
      * <p>
      * Attempts to load from filesystem first, then falls back to classpath.
      * Throws an exception if the file cannot be found in either location.
-     * 
+     * <p>
+     * Plugin convenience for resolving a file inside a base directory lives in the
+     * {@code jehibernate-plugin} module ({@code PluginPropertyLoader.fromPluginDataFolder}).
+     *
      * @param filePath the path to the properties file (relative or absolute)
      * @return the loaded properties
      * @throws ConfigurationException if the properties file cannot be found or loaded
