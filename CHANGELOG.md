@@ -70,8 +70,10 @@ schema-management defaults changed. See the migration notes below.
     standalone/Spring consumers get the logging facade without manual setup.
   - `examples/spring-boot-demo/` (bootstrap < 50 lines) and `examples/spigot-plugin-demo/`
     (unchanged plugin API) added; `jehibernate-plugin` targets Java 21 (Paper runtime).
-- Integration/extension tests: `H2JEHibernateExtensionTest` (boot + reset between tests),
-  `PostgresJEHibernateExtensionIT` (Testcontainers, Docker-gated).
+- Integration/extension tests: `H2JEHibernateExtensionTest` (boot + reset between tests);
+  a shared `AbstractCrudAcrossDatabasesIT` CRUD+query scenario run per database via
+  `H2CrudIT` (always runs) and `PostgresCrudIT`/`MySqlCrudIT`/`MariaDbCrudIT`
+  (Testcontainers, skipped without Docker).
 - ADRs under `docs/adr/`.
 
 ### Changed

@@ -23,7 +23,9 @@ dependencies {
     // ── Test ──
     testImplementation(libs.assertj.core)
     testImplementation(libs.h2)
-    // Driver for the Postgres example test (the container module comes via api).
+    // JDBC drivers for the per-database integration tests (container modules come via api).
     testRuntimeOnly(libs.postgresql)
+    testRuntimeOnly(libs.mysql)
+    testRuntimeOnly(libs.mariadb)
     testRuntimeOnly(libs.slf4j.simple)
 }
