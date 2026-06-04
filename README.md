@@ -57,26 +57,41 @@ var users = je.repositories().get(UserRepository.class);
 
 ### Spring Boot quickstart (new users)
 
+Add the starter — auto-configuration reuses your Spring `DataSource` and registers a `JEHibernate`
+bean. No `@Bean` boilerplate needed:
+
 ```kotlin
 implementation("de.jexcellence.hibernate:jehibernate-spring-boot:4.0.0")
 ```
 
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app
+    username: app
+    password: secret
+jehibernate:
+  database: POSTGRESQL
+  ddl-auto: validate
+  scan-packages: [com.example.domain]
+  migration-enabled: false   # let Spring Boot's own Flyway run migrations
+```
+
 ```java
-@Configuration
-class JEHibernateConfig {
-    @Bean(destroyMethod = "close")
-    JEHibernate jeHibernate(DataSource dataSource) {
-        return JEHibernate.builder()
-            .configuration(c -> c
-                .database(DatabaseType.POSTGRESQL)
-                .url("jdbc:postgresql://localhost:5432/app")
-                .dataSource(dataSource)   // reuse Spring's pool — JEHibernate won't close it
-                .ddlAuto("validate"))
-            .scanPackages("com.example")
-            .build();
+@Service
+class UserService {
+    private final UserRepository users;
+    UserService(JEHibernate jeHibernate) {          // auto-configured bean
+        this.users = jeHibernate.repositories().get(UserRepository.class);
     }
 }
 ```
+
+The auto-configuration activates when a `DataSource` bean is present, reuses it (JEHibernate never
+closes Spring's pool), and is driven by `jehibernate.*` properties. To configure programmatically
+instead, define your own `JEHibernate` `@Bean` (auto-config backs off via `@ConditionalOnMissingBean`).
+Set `jehibernate.enabled=false` to disable it entirely.
 
 ### Migration guide
 

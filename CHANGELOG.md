@@ -53,6 +53,15 @@ schema-management defaults changed. See the migration notes below.
   `EntityGraphIntegrationTest` (single-query collection fetch verified via Hibernate Statistics),
   `DiscriminatorMultiTenancyTest` (tenant isolation, leak-guard throws, thread switch, shared pool),
   `MultiTenantConnectionProviderTest` (SCHEMA/DATABASE provider unit coverage).
+- **Spring Boot auto-configuration** (`jehibernate-spring-boot`):
+  - `JEHibernateAutoConfiguration` (`@AutoConfiguration`, after `DataSourceAutoConfiguration`)
+    registers a `JEHibernate` bean that reuses the application `DataSource` (Spring's pool, never
+    closed by JEHibernate) and a `RepositoryRegistry` bean.
+  - `JEHibernateProperties` binds `jehibernate.*` (database, url, scan-packages, ddl-auto,
+    migration-enabled, multi-tenancy, enabled). Registered via
+    `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
+  - Backs off when a `JEHibernate` bean is user-defined (`@ConditionalOnMissingBean`); disable via
+    `jehibernate.enabled=false`. Verified by a Spring context test on H2 (no Docker).
 - **Testing module** `jehibernate-testing` (TODO-6):
   - `@JEHibernateTest` + `JEHibernateExtension` (JUnit 5): boots JEHibernate against H2 or a
     Testcontainers container (PostgreSQL/MySQL/MariaDB/MSSQL), injects `JEHibernate`/

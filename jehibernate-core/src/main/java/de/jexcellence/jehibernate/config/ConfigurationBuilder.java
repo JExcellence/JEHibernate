@@ -417,7 +417,7 @@ public final class ConfigurationBuilder {
         if (externalDataSource != null) {
             this.managedDataSource = externalDataSource;
             this.ownsDataSource = false;
-            LOGGER.info("Using externally supplied DataSource — JEHibernate will not manage its lifecycle");
+            LOGGER.info("Using externally supplied DataSource - JEHibernate will not manage its lifecycle");
         } else {
             this.managedDataSource = HikariDataSourceFactory.create(databaseConfig, poolConfig);
             this.ownsDataSource = true;
