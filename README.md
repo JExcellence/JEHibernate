@@ -7,7 +7,7 @@
   <p align="center">
     <img src="https://img.shields.io/badge/Java-17%2B-orange" alt="Java 17+">
     <img src="https://img.shields.io/badge/Hibernate-7.x-59666C" alt="Hibernate 7.x">
-    <img src="https://img.shields.io/badge/Tests-95%20passing-brightgreen" alt="Tests">
+    <img src="https://img.shields.io/badge/Tests-97%20passing-brightgreen" alt="Tests">
     <img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="License">
   </p>
 </p>
@@ -39,6 +39,10 @@ What changed (see [CHANGELOG](CHANGELOG.md) and `docs/adr/`):
 - **Flyway migrations** run before Hibernate boots (`V001__init.sql` under
   `classpath:db/migration`). Liquibase is opt-in.
 - **`ddl-auto` now defaults to `validate`** (was `update`) — migrations own the schema.
+- **Audit trail** via Hibernate Envers (`@Audited` + `enableAudit()`); see
+  [docs/audit-guide.md](docs/audit-guide.md).
+- **Multi-tenancy** (DISCRIMINATOR/SCHEMA/DATABASE) and a **Spring Boot starter** with a
+  `@JEHibernateRepositoryTest` slice.
 - Published coordinate is now `de.jexcellence.hibernate:jehibernate-core` (was `JEHibernate`).
 
 ### Plugin quickstart (existing users)

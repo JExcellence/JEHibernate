@@ -37,6 +37,15 @@ schema-management defaults changed. See the migration notes below.
   - `docs/lazy-loading-guide.md` with a when-to-use decision table (scoping vs read-only vs
     EntityGraph vs OSIV). OSIV is documented as a copy-ready last-resort pattern, deliberately
     not shipped as a bean.
+- **Audit trail via Hibernate Envers** (TODO-4, ADR-0005), opt-in:
+  - Entities opt in with `@org.hibernate.envers.Audited`; `ConfigurationBuilder.enableAudit()`
+    registers `JEHibernateRevisionEntity` (revision_id, timestamp, user_id, source_ip, tenant_id).
+  - `AuditUserResolver` SPI + `AuditContext` holder; `JEHibernateRevisionListener` records the
+    resolved user/IP and the current `TenantContext` tenant per revision.
+  - Query API `Audit.getRevisions` / `getRevisionNumbers` / `getRevisionInfo`.
+  - `hibernate-envers` is an optional (`compileOnly`) dependency; auto-activates when present.
+  - `docs/audit-guide.md` with DSGVO retention/erasure guidance (Art. 5/17/32, § 26 BDSG).
+    Note: no built-in purge job and no non-Envers listener hook (documented as out of scope).
 - **Multi-tenancy** (TODO-5, ADR-0004), off by default:
   - `MultiTenancyStrategy` (NONE/DATABASE/SCHEMA/DISCRIMINATOR), `MultiTenancyConfig`,
     `ConfigurationBuilder.multiTenancy(...)`.

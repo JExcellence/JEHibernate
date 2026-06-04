@@ -32,6 +32,8 @@ dependencies {
     compileOnly(libs.flyway.core)
     compileOnly(libs.liquibase.core)
     compileOnly(libs.hibernate.jcache)
+    // Envers audit: present → @Audited entities are versioned; absent → audit classes unused.
+    compileOnly(libs.hibernate.envers)
     // API contracts / JDBC drivers provided by the host.
     compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.postgresql)
@@ -46,6 +48,7 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.h2)
     testImplementation(libs.flyway.core)
+    testImplementation(libs.hibernate.envers)
     testRuntimeOnly(libs.slf4j.simple)
 }
 

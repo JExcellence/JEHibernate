@@ -1,5 +1,6 @@
 package de.jexcellence.jehibernate.config;
 
+import de.jexcellence.jehibernate.audit.JEHibernateRevisionEntity;
 import de.jexcellence.jehibernate.exception.ConfigurationException;
 import de.jexcellence.jehibernate.exception.JEHibernateException;
 import de.jexcellence.jehibernate.migration.MigrationConfig;
@@ -169,6 +170,17 @@ public final class ConfigurationBuilder {
     public ConfigurationBuilder registerEntities(Set<Class<?>> entities) {
         entityClasses.addAll(entities);
         return this;
+    }
+
+    /**
+     * Enables Hibernate Envers auditing by registering {@link JEHibernateRevisionEntity} (revision
+     * number, timestamp, user, source IP, tenant). Entities opt in individually with
+     * {@code @org.hibernate.envers.Audited}. Requires {@code hibernate-envers} on the classpath.
+     *
+     * @return this builder for chaining
+     */
+    public ConfigurationBuilder enableAudit() {
+        return registerEntity(JEHibernateRevisionEntity.class);
     }
 
     public ConfigurationBuilder showSql(boolean show) {
