@@ -62,6 +62,9 @@ schema-management defaults changed. See the migration notes below.
     `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`.
   - Backs off when a `JEHibernate` bean is user-defined (`@ConditionalOnMissingBean`); disable via
     `jehibernate.enabled=false`. Verified by a Spring context test on H2 (no Docker).
+  - `@JEHibernateRepositoryTest` test slice (analog of `@DataJpaTest`): boots a minimal context
+    with an embedded DataSource + the JEHibernate auto-configuration; attributes
+    (`database`, `ddlAuto`, `scanPackages`, `migrationEnabled`) map to `jehibernate.*` properties.
 - **Testing module** `jehibernate-testing` (TODO-6):
   - `@JEHibernateTest` + `JEHibernateExtension` (JUnit 5): boots JEHibernate against H2 or a
     Testcontainers container (PostgreSQL/MySQL/MariaDB/MSSQL), injects `JEHibernate`/
