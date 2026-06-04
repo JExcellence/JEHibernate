@@ -1,4 +1,4 @@
--- JEHibernate TODO-2 migration fixture.
+-- JEHibernate migration fixture.
 -- Flyway applies this on an empty database before Hibernate builds its SessionFactory.
 CREATE TABLE app_setting (
     id            BIGINT       NOT NULL PRIMARY KEY,

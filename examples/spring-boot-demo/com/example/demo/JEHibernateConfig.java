@@ -34,6 +34,3 @@ class JEHibernateConfig {
         return jeHibernate.repositories().get(UserRepository.class);
     }
 }
-
-// Your repository — the same abstraction as in the plugin world:
-// class UserRepository extends AbstractCrudRepository<User, Long> { ... }

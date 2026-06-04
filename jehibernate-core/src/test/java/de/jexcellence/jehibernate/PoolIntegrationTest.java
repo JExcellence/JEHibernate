@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * TODO-1 acceptance: with a real HikariCP pool, many concurrent queries run without
+ * Acceptance: with a real HikariCP pool, many concurrent queries run without
  * serialising or deadlocking, sensible defaults apply without explicit pool properties,
  * and {@code getPoolHealth()} reports live metrics.
  * <p>

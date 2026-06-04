@@ -50,8 +50,15 @@ public final class SchemaMultiTenantConnectionProvider implements MultiTenantCon
     @Override
     public Connection getConnection(String tenantIdentifier) throws SQLException {
         Connection connection = dataSource.getConnection();
-        connection.setSchema(tenantIdentifier);
-        return connection;
+        try {
+            connection.setSchema(tenantIdentifier);
+            return connection;
+        } catch (SQLException | RuntimeException e) {
+            // Close on the failure path so a failed schema switch never leaks the connection;
+            // on success the open connection is returned (Hibernate releases it later).
+            connection.close();
+            throw e;
+        }
     }
 
     @Override

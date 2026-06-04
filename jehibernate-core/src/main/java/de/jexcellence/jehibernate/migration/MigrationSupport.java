@@ -15,7 +15,7 @@ import javax.sql.DataSource;
  * <b>Optional by design:</b> the chosen tool's classes are referenced only after a
  * {@code Class.forName} guard confirms they are on the classpath. When the tool is absent the
  * step is a silent no-op (logged at INFO) — never an error. This keeps Flyway/Liquibase optional
- * dependencies for the plugin use-case, exactly as TODO-2 requires.
+ * dependencies for the plugin use-case.
  *
  * @since 4.0
  */

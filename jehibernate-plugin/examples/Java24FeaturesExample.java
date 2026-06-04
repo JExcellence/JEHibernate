@@ -36,12 +36,18 @@ class Product extends LongIdEntity {
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj);
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof Product other)) {
+            return false;
+        }
+        return getId() != null && getId().equals(other.getId());
     }
 
     @Override
     public int hashCode() {
-        return super.hashCode();
+        return Product.class.hashCode();
     }
 }
 

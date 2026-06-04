@@ -525,7 +525,7 @@ public final class ConfigurationBuilder {
         // Sensible defaults — caller-supplied values already in `properties` take precedence
         // because we copied them into `config` above before these putIfAbsent calls.
         // ddl-auto defaults to "validate" since 4.0 (was "update"): migrations now own the
-        // schema (TODO-2 / ADR-0002). Callers that still want Hibernate to manage DDL set
+        // schema (see ADR-0002). Callers that still want Hibernate to manage DDL set
         // ddlAuto("update") explicitly.
         config.putIfAbsent(AvailableSettings.HBM2DDL_AUTO, "validate");
         config.putIfAbsent(AvailableSettings.SHOW_SQL, false);

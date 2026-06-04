@@ -25,6 +25,9 @@ public record MultiTenancyConfig(
     Map<String, DataSource> tenantDataSources
 ) {
 
+    /** Default schema connections are reset to on release for the SCHEMA strategy. */
+    public static final String DEFAULT_SCHEMA = "PUBLIC";
+
     public MultiTenancyConfig {
         if (strategy == null) {
             throw new IllegalArgumentException("MultiTenancyStrategy must not be null");
@@ -45,13 +48,13 @@ public record MultiTenancyConfig(
     /** @return multi-tenancy disabled (single-tenant). */
     public static MultiTenancyConfig disabled() {
         return new MultiTenancyConfig(
-            MultiTenancyStrategy.NONE, TenantResolver.fromContext(), false, null, "PUBLIC", Map.of());
+            MultiTenancyStrategy.NONE, TenantResolver.fromContext(), false, null, DEFAULT_SCHEMA, Map.of());
     }
 
     /** @return DISCRIMINATOR strategy (strict leak guard on), resolving the tenant from {@link TenantContext}. */
     public static MultiTenancyConfig discriminator() {
         return new MultiTenancyConfig(
-            MultiTenancyStrategy.DISCRIMINATOR, TenantResolver.fromContext(), true, null, "PUBLIC", Map.of());
+            MultiTenancyStrategy.DISCRIMINATOR, TenantResolver.fromContext(), true, null, DEFAULT_SCHEMA, Map.of());
     }
 
     /**
@@ -69,7 +72,7 @@ public record MultiTenancyConfig(
      */
     public static MultiTenancyConfig database(Map<String, DataSource> tenantDataSources) {
         return new MultiTenancyConfig(
-            MultiTenancyStrategy.DATABASE, TenantResolver.fromContext(), true, null, "PUBLIC", tenantDataSources);
+            MultiTenancyStrategy.DATABASE, TenantResolver.fromContext(), true, null, DEFAULT_SCHEMA, tenantDataSources);
     }
 
     /**

@@ -40,9 +40,6 @@ public final class LiquibaseMigrationRunner implements MigrationRunner {
                 LOGGER.info("Liquibase update complete from changelog {}", config.location());
             }
         } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
             throw new JEHibernateException("Liquibase migration failed for changelog " + config.location(), e);
         }
     }

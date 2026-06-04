@@ -9,30 +9,30 @@ plugins {
 description = "JEHibernate core — plugin-agnostic, Spring-agnostic Hibernate/JPA utility library"
 
 dependencies {
-    // ── Implementation ──
+    // ── API (exposed to consumers) ──
     api(platform(libs.hibernate.platform))
     api(libs.hibernate.core)
     api(libs.jakarta.persistence)
     api(libs.jakarta.transaction)
+
+    // ── Implementation ──
     implementation(libs.reflections)
     implementation(libs.caffeine)
-    // HikariCP is the default connection pool (TODO-1). DataSource is owned by
-    // JEHibernate and handed to Hibernate via DatasourceConnectionProviderImpl
-    // (shipped in hibernate-core), so hibernate-hikaricp is intentionally NOT needed.
+    // HikariCP is the default connection pool: JEHibernate owns the DataSource and hands it to
+    // Hibernate via DatasourceConnectionProviderImpl (shipped in hibernate-core), so
+    // hibernate-hikaricp is intentionally not needed.
     implementation(libs.hikari)
+    // SLF4J API: bundled transitively so standalone/Spring consumers get the logging facade
+    // without manual setup. Plugins already have it from Paper (benign duplicate); consumers
+    // still choose their own binding.
+    implementation(libs.slf4j.api)
 
     // ── Compile-only: optional integrations detected at runtime ──
     // Migration: present → auto-run; absent → silent no-op (see MigrationSupport).
     compileOnly(libs.flyway.core)
     compileOnly(libs.liquibase.core)
     compileOnly(libs.hibernate.jcache)
-
-    // SLF4J API: bundled as a transitive dependency (4.0) so standalone/Spring consumers get the
-    // logging facade without manual setup. Plugins already have it provided by Paper (benign
-    // duplicate). Consumers still choose their own binding; tests use slf4j-simple.
-    implementation(libs.slf4j.api)
-
-    // ── Compile-only: API contracts / drivers provided by the host ──
+    // API contracts / JDBC drivers provided by the host.
     compileOnly(libs.jetbrains.annotations)
     compileOnly(libs.postgresql)
     compileOnly(libs.mysql)

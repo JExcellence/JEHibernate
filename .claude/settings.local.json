@@ -31,7 +31,8 @@
       "Bash(grep -v \"build/\" find \"C:/Users/Privat/IdeaProjects/RaindropPlugins\" -path \"*/dependency/*.yml\")",
       "Bash(xargs grep *)",
       "mcp__Claude_in_Chrome__tabs_context_mcp",
-      "Bash(gh repo *)"
+      "Bash(gh repo *)",
+      "WebFetch(domain:gitroll.io)"
     ]
   }
 }

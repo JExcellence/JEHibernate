@@ -76,7 +76,7 @@ class ShopOrderRepository extends AbstractCrudRepository<ShopOrder, Long> {
 }
 
 /**
- * TODO-3 acceptance: an {@code @EntityGraph}-style fetch loads a {@code ShopOrder} together with
+ * Acceptance: an {@code @EntityGraph}-style fetch loads a {@code ShopOrder} together with
  * its {@code items} in a single SQL statement (no N+1), verified via Hibernate {@link Statistics}.
  */
 class EntityGraphIntegrationTest {

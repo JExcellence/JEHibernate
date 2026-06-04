@@ -34,5 +34,3 @@ public class DemoPlugin extends JavaPlugin {
         }
     }
 }
-
-// class UserRepository extends AbstractCrudRepository<User, Long> { ... }  // unchanged from 3.x

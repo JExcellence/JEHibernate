@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * TODO-2 acceptance: Flyway runs the {@code V*.sql} migrations before Hibernate boots, is a
+ * Acceptance: Flyway runs the {@code V*.sql} migrations before Hibernate boots, is a
  * no-op on a second start, and can be disabled. Liquibase activation is verified at the
  * configuration level.
  * <p>

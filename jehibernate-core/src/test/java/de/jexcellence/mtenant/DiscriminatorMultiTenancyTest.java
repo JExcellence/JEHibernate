@@ -48,7 +48,7 @@ class TenantNoteRepository extends AbstractCrudRepository<TenantNote, Long> {
 }
 
 /**
- * TODO-5 acceptance for the DISCRIMINATOR strategy:
+ * Acceptance for the DISCRIMINATOR strategy:
  * <ul>
  *   <li>two tenants share one entity class; tenant A's rows are invisible to tenant B;</li>
  *   <li>a forgotten tenant context throws (leak guard) instead of leaking across tenants;</li>

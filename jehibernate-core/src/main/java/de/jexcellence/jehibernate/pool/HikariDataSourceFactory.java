@@ -13,7 +13,7 @@ import javax.sql.DataSource;
  * JEHibernate deliberately owns the {@link HikariDataSource} (handed to Hibernate via
  * {@code DatasourceConnectionProviderImpl}) rather than letting Hibernate instantiate the pool
  * through {@code HikariCPConnectionProvider}. Owning the instance is the only way to satisfy all
- * three TODO-1 acceptance criteria with one wiring: direct {@code getPoolHealth()} metrics,
+ * three connection-pool acceptance criteria with one wiring: direct {@code getPoolHealth()} metrics,
  * deterministic shutdown, and reuse of an externally supplied {@code DataSource} (Spring Boot).
  *
  * @since 4.0
