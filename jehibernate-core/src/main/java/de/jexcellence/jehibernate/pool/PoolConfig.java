@@ -51,6 +51,14 @@ public record PoolConfig(
     private static final String KEY_LEAK_DETECTION = KEY_PREFIX + "leakDetectionThreshold";
     private static final String KEY_VALIDATION_TIMEOUT = KEY_PREFIX + "validationTimeout";
 
+    /**
+     * Legacy Hibernate built-in-pool key. Since 4.0 connections are pooled by HikariCP, so this is
+     * mapped to {@link #maximumPoolSize} for backwards compatibility with 3.x {@code
+     * hibernate.properties}. {@code jehibernate.pool.maximumPoolSize} takes precedence when both are
+     * present.
+     */
+    private static final String LEGACY_POOL_SIZE = "hibernate.connection.pool_size";
+
     public PoolConfig {
         if (maximumPoolSize < 1) {
             throw new IllegalArgumentException("maximumPoolSize must be >= 1");
@@ -85,8 +93,11 @@ public record PoolConfig(
      * @return a {@code PoolConfig} merged from {@code props} over {@code base}
      */
     public static PoolConfig fromProperties(Properties props, PoolConfig base) {
+        // Precedence for the pool size: jehibernate.pool.maximumPoolSize > legacy
+        // hibernate.connection.pool_size > base default.
+        int legacyOrBaseMaxPoolSize = intProp(props, LEGACY_POOL_SIZE, base.maximumPoolSize);
         return new PoolConfig(
-            intProp(props, KEY_MAX_POOL_SIZE, base.maximumPoolSize),
+            intProp(props, KEY_MAX_POOL_SIZE, legacyOrBaseMaxPoolSize),
             intProp(props, KEY_MIN_IDLE, base.minimumIdle),
             longProp(props, KEY_IDLE_TIMEOUT, base.idleTimeoutMillis),
             longProp(props, KEY_CONNECTION_TIMEOUT, base.connectionTimeoutMillis),
