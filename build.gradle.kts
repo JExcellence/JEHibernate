@@ -20,8 +20,8 @@ subprojects {
             // Build with a modern JDK …
             languageVersion.set(JavaLanguageVersion.of(24))
         }
-        withSourcesJar()
-        withJavadocJar()
+        // Sources/Javadoc jars are produced by the com.vanniktech.maven.publish plugin for
+        // publishable modules; don't also declare them here or the outputs collide.
     }
 
     tasks.withType<JavaCompile>().configureEach {

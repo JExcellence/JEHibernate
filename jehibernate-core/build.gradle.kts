@@ -53,14 +53,12 @@ dependencies {
 }
 
 mavenPublishing {
-    coordinates(group.toString(), "jehibernate-core", version.toString())
-
+    coordinates(group.toString(), project.name, version.toString())
     pom {
-        name.set("JEHibernate Core")
-        description.set(project.description)
+        name.set(project.name)
+        description.set(project.description ?: "JEHibernate module")
         url.set("https://github.com/jexcellence/JEHibernate")
         inceptionYear.set("2024")
-
         licenses {
             license {
                 name.set("Apache License, Version 2.0")
@@ -93,8 +91,10 @@ mavenPublishing {
     }
 }
 
-val signingKeyProp = (project.findProperty("signingInMemoryKey") ?: project.findProperty("signingKey")) as String?
-val signingPasswordProp = (project.findProperty("signingInMemoryKeyPassword") ?: project.findProperty("signing.password")) as String?
+// Signing: in-memory PGP keys from properties (signingInMemoryKey / …Password), no-op when absent
+// (e.g. publishToMavenLocal). Central publishing requires them.
+val signingKeyProp = (findProperty("signingInMemoryKey") ?: findProperty("signingKey")) as String?
+val signingPasswordProp = (findProperty("signingInMemoryKeyPassword") ?: findProperty("signing.password")) as String?
 
 signing {
     isRequired = !signingKeyProp.isNullOrBlank() && !signingPasswordProp.isNullOrBlank()
