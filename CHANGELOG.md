@@ -4,6 +4,21 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] — 2026-08-06
+
+### Fixed
+
+- **fix(entity): make @Version column nullable so hbm2ddl=update can add it to populated tables.**
+  `BaseEntity.version` was a primitive `int`, which maps to a `NOT NULL` column. When a consumer
+  adopted `BaseEntity`/`LongIdEntity`/`UuidEntity`/`StringIdEntity` on an existing table with rows,
+  `hbm2ddl.auto=update` emitted `add column version integer not null`, which fails the H2/MySQL table
+  rebuild on the existing rows (Hibernate logged it as a WARNING and continued, leaving the column
+  missing and later inserts/updates broken). The field is now `Integer` (nullable column) defaulted
+  to `0`; the public accessor stays `int getVersion()` and is null-safe (rows predating the column
+  read as `0`). No API change. `@Version` on `Integer` is permitted by the JPA spec. Optimistic
+  locking, fresh-schema creation, and pre-existing stricter (`NOT NULL DEFAULT 0`) columns are
+  unaffected — covered by `VersionMigrationTest`.
+
 ## [4.0.0] — 2026-06-02
 
 Major release. The library is now a **multi-module build** and the connection-pool and

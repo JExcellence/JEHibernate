@@ -87,9 +87,23 @@ public abstract class BaseEntity<I> implements Identifiable<I>, Serializable {
      */
     private final transient UUID identityToken = UUID.randomUUID();
 
+    /**
+     * Optimistic-locking version. Nullable ({@code Integer}, not {@code int}) so that
+     * {@code hbm2ddl.auto=update} can add this column to an already-populated table: a primitive
+     * {@code int} maps to {@code NOT NULL}, which H2/MySQL/MariaDB/PostgreSQL cannot satisfy for the
+     * existing rows during the table rebuild. Hibernate assigns {@code 0} on persist, so {@code null}
+     * only ever appears on rows that predate the column. {@code @Version} on {@code Integer} is
+     * permitted by the JPA spec.
+     * <p>
+     * Defaulted to {@code 0} (not left {@code null}) so a freshly constructed, detached entity —
+     * e.g. {@code new X(); x.setId(existingId)} passed to {@code createOrUpdate}/{@code merge} —
+     * carries version {@code 0} and matches an existing row's {@code where … and version=0}. The
+     * default does not affect column nullability (the {@code Integer} type does); rows loaded from
+     * the DB with a {@code null} version overwrite this default and read as {@code 0} via the getter.
+     */
     @Version
-    private int version;
-    
+    private Integer version = 0;
+
     @CreationTimestamp
     @Column(updatable = false)
     private Instant createdAt;
@@ -116,10 +130,16 @@ public abstract class BaseEntity<I> implements Identifiable<I>, Serializable {
         updatedAt = Instant.now();
     }
     
+    /**
+     * Returns the optimistic-locking version. Null-safe: rows that predate the version column
+     * (added later via {@code hbm2ddl.auto=update}) read as {@code 0}.
+     *
+     * @return the version, or {@code 0} if not yet set
+     */
     public int getVersion() {
-        return version;
+        return version == null ? 0 : version;
     }
-    
+
     protected void setVersion(int version) {
         this.version = version;
     }
@@ -162,7 +182,7 @@ public abstract class BaseEntity<I> implements Identifiable<I>, Serializable {
     public String toString() {
         return getClass().getSimpleName() + "{" +
             "id=" + getId() +
-            ", version=" + version +
+            ", version=" + getVersion() +
             ", createdAt=" + createdAt +
             ", updatedAt=" + updatedAt +
             '}';
