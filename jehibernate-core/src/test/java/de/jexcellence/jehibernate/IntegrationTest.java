@@ -13,6 +13,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -202,6 +206,25 @@ public class IntegrationTest {
         var found = playerRepo.findById(player.getId());
         assertThat(found).isPresent();
         assertThat(found.get().getUsername()).isEqualTo("alice");
+    }
+
+    /**
+     * The UUID id must map to H2's native {@code UUID} type, not a raw {@code BINARY(16)} literal.
+     * The old {@code columnDefinition = "BINARY(16)"} is what broke PostgreSQL (no {@code BINARY} type);
+     * asserting the dialect-native type here guards against a regression to that hard-coded literal.
+     */
+    @Test
+    void uuidIdMapsToNativeDialectType() throws SQLException {
+        playerRepo.create(new TestPlayer("alice"));
+
+        try (Connection connection = jeHibernate.getDataSource().getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery(
+                 "SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS "
+                     + "WHERE COLUMN_NAME = 'ID' AND TABLE_NAME LIKE '%PLAYER%'")) {
+            assertThat(rs.next()).isTrue();
+            assertThat(rs.getString(1)).isEqualTo("UUID");
+        }
     }
     
     @Test

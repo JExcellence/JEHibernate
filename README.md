@@ -385,7 +385,7 @@ All base classes provide automatic `createdAt` / `updatedAt` timestamps, optimis
 | Class | ID Type | Use Case |
 |-------|---------|----------|
 | `LongIdEntity` | Auto-increment `Long` | Most entities (warps, homes, shops) |
-| `UuidEntity` | `UUID` stored as `BINARY(16)` | Players, distributed systems |
+| `UuidEntity` | `UUID` (native per dialect: `uuid` / `binary(16)`) | Players, distributed systems |
 | `StringIdEntity` | Custom `String` | Natural keys (world names, permission nodes) |
 
 ```java

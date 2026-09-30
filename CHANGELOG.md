@@ -4,6 +4,37 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2] — 2026-09-30
+
+### Fixed
+
+- **fix(entity): map `UuidEntity` id via `SqlTypes.UUID` instead of a hard-coded `BINARY(16)` literal.**
+  `UuidEntity` declared `@Column(columnDefinition = "BINARY(16)")`, forcing that raw DDL fragment into
+  `CREATE TABLE`. PostgreSQL has no `BINARY` type, so **table creation failed entirely on PostgreSQL** —
+  the entity only ever worked on H2/MySQL/MariaDB. The id now uses `@JdbcTypeCode(SqlTypes.UUID)`, so
+  Hibernate emits the dialect-native type: `uuid` on PostgreSQL and H2, `binary(16)` on MySQL/MariaDB,
+  `uniqueidentifier` on SQL Server. No API change (`getId()` is still `UUID`).
+
+  **Storage impact per database:**
+  - **PostgreSQL** — previously broken; now creates a native `uuid` column. No migration (there was no
+    working table to migrate).
+  - **MySQL / MariaDB** — column stays `binary(16)`. **No migration needed.**
+  - **H2** — the type name changes from `BINARY(16)` to `UUID`. A fresh schema is created correctly. An
+    **existing H2 database with persisted rows** created by 4.0.0/4.0.1 will fail `ddl-auto=validate`
+    after upgrading, because the stored column is `BINARY(16)` but the mapping now expects `UUID`. H2
+    stores both as the same 16 bytes, so only the column *type* must be changed. Manual migration
+    (run once against each affected H2 database, replacing `your_table`):
+
+    ```sql
+    ALTER TABLE your_table ALTER COLUMN id UUID;
+    ```
+
+    Repeat for every `UuidEntity` table (including join tables with a UUID FK). If you have no persisted
+    H2 data (embedded/test databases recreated on boot), no action is required.
+
+  Covered by `IntegrationTest.uuidIdMapsToNativeDialectType` (asserts the H2 column type is `UUID`, not
+  `BINARY`, guarding against a regression to the hard-coded literal).
+
 ## [4.0.1] — 2026-08-06
 
 ### Fixed

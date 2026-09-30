@@ -1,8 +1,9 @@
 package de.jexcellence.jehibernate.entity.base;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.io.Serial;
 import java.util.UUID;
@@ -17,7 +18,7 @@ import java.util.UUID;
  * <b>Features:</b>
  * <ul>
  *   <li>Auto-generated UUID (version 4)</li>
- *   <li>Stored as BINARY(16) for efficiency</li>
+ *   <li>Stored using each database's native UUID type (dialect-portable; see below)</li>
  *   <li>Globally unique across all databases</li>
  *   <li>No database round-trip needed for ID generation</li>
  *   <li>Automatic timestamps and optimistic locking</li>
@@ -55,8 +56,10 @@ import java.util.UUID;
  *   <li>Security (IDs are not sequential/predictable)</li>
  * </ul>
  * <p>
- * <b>Performance Note:</b> UUIDs are stored as BINARY(16) for optimal storage
- * and indexing performance (16 bytes vs 36 bytes for string representation).
+ * <b>Storage Note:</b> the id is mapped via {@link org.hibernate.type.SqlTypes#UUID}, so Hibernate
+ * emits the dialect-native type: {@code uuid} on PostgreSQL and H2, {@code binary(16)} on MySQL and
+ * MariaDB, {@code uniqueidentifier} on SQL Server. In every case this is a compact 16-byte key rather
+ * than the 36-character string representation.
  *
  * @author JEHibernate
  * @version 2.0
@@ -71,8 +74,15 @@ public abstract class UuidEntity extends BaseEntity<UUID> {
     @Serial
     private static final long serialVersionUID = 1L;
     
+    /**
+     * UUID primary key mapped via {@link SqlTypes#UUID} so Hibernate picks the portable, dialect-native
+     * SQL type instead of a hard-coded {@code BINARY(16)} literal: {@code uuid} on PostgreSQL and H2,
+     * {@code binary(16)} on MySQL/MariaDB, {@code uniqueidentifier} on SQL Server. A raw
+     * {@code columnDefinition = "BINARY(16)"} was previously forced into the DDL, which PostgreSQL
+     * rejects (it has no {@code BINARY} type), so table creation failed there entirely.
+     */
     @Id
-    @Column(columnDefinition = "BINARY(16)")
+    @JdbcTypeCode(SqlTypes.UUID)
     private UUID id;
     
     protected UuidEntity() {
