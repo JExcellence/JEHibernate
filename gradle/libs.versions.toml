@@ -13,9 +13,9 @@ jackson = "2.22.4"
 hikari = "6.3.0"
 flyway = "11.20.3"
 liquibase = "4.30.0"
-springBoot = "3.4.1"
+springBoot = "3.5.16"
 paper = "1.21.4-R0.1-SNAPSHOT"
-junit = "5.11.4"
+junit = "5.14.4"
 assertj = "3.27.7"
 mockito = "5.24.0"
 testcontainers = "1.21.4"
@@ -70,6 +70,10 @@ paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 
 # ── Test ──
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+# JUnit Platform launcher: pinned on the test runtime classpath so Gradle uses a launcher matching
+# the Jupiter engine (JUnit 5.12+ ship a Platform newer than Gradle bundles, which otherwise crashes
+# test teardown). 1.14.x pairs with Jupiter 5.14.x and drives any older engine on the classpath.
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version = "1.14.4" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }

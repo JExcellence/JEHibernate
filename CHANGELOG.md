@@ -4,6 +4,18 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed — build toolchain
+
+- **Gradle `8.8 → 8.14.6`.** 8.8 did not officially support the JDK 24 toolchain, bundled a JUnit
+  Platform launcher too old for JUnit 5.12+, and broke the dependency-versions plugin. 8.14.6 runs
+  cleanly on JDK 24.
+- **Spring Boot `3.4.1 → 3.5.16`** and **JUnit `5.11.4 → 5.14.4`** — unblocked by the Gradle upgrade
+  (both were held back in 4.0.4 for exactly this reason).
+- Added `org.junit.platform:junit-platform-launcher:1.14.4` to each module's test runtime so Gradle
+  drives the matching JUnit Platform engine (prevents the test-teardown crash with JUnit 5.12+).
+
 ## [4.0.4] — 2026-10-21
 
 ### Changed — dependency refresh (verified; full test suite green)

@@ -50,6 +50,7 @@ dependencies {
     testImplementation(libs.flyway.core)
     testImplementation(libs.hibernate.envers)
     testRuntimeOnly(libs.slf4j.simple)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 mavenPublishing {

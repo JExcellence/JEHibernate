@@ -32,6 +32,7 @@ dependencies {
     testRuntimeOnly(libs.mysql)
     testRuntimeOnly(libs.mariadb)
     testRuntimeOnly(libs.slf4j.simple)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 mavenPublishing {

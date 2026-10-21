@@ -29,6 +29,7 @@ dependencies {
     testImplementation(libs.spring.boot.starter.jdbc)
     testImplementation(libs.spring.boot.autoconfigure)
     testImplementation(libs.h2)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 mavenPublishing {

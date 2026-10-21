@@ -26,6 +26,7 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.h2)
     testRuntimeOnly(libs.slf4j.simple)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 mavenPublishing {
