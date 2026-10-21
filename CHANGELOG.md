@@ -4,7 +4,19 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.2.0] — 2026-10-21
+
+### Fixed — critical, affects PostgreSQL & MySQL
+
+- **The owned HikariCP pool now disables autocommit (`hikari.setAutoCommit(false)`).** JEHibernate sets
+  `hibernate.connection.provider_disables_autocommit=true`, telling Hibernate the pool already turned
+  autocommit off — but the pool was left at HikariCP's default (`autoCommit=true`). Hibernate then
+  committed its transactions against an autocommit connection, which **PostgreSQL and MySQL/MariaDB
+  reject** (`Cannot commit when autoCommit is enabled`), so every write failed on those databases when
+  using the JEHibernate-owned pool. H2 tolerates it, which is why the defect was invisible to the
+  H2-only quick tests and only the Testcontainers CRUD suite (PostgreSQL/MySQL/MariaDB) caught it.
+  Present in 4.0.0–4.1.0. **Consumers on PostgreSQL/MySQL/MariaDB with the owned pool should upgrade.**
+  Verified by `PostgresCrudIT`, `MySqlCrudIT`, and `MariaDbCrudIT` against real databases.
 
 ### Added
 

@@ -51,6 +51,14 @@ public final class HikariDataSourceFactory {
         hikari.setLeakDetectionThreshold(pool.leakDetectionThresholdMillis());
         hikari.setValidationTimeout(pool.validationTimeoutMillis());
 
+        // Hibernate manages transaction boundaries itself (begin/commit), and JEHibernate sets
+        // hibernate.connection.provider_disables_autocommit=true to tell it the pool already disabled
+        // autocommit. That contract must hold: with HikariCP's default autoCommit=true, Hibernate would
+        // commit against an autocommit connection, which PostgreSQL and MySQL reject
+        // ("Cannot commit when autoCommit is enabled"). H2 tolerates it, so the mismatch only surfaces
+        // on real databases. Disabling it here is what makes the owned pool correct everywhere.
+        hikari.setAutoCommit(false);
+
         return new HikariDataSource(hikari);
     }
 
