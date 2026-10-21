@@ -2,6 +2,7 @@ package de.jexcellence.jehibernate.repository.base;
 
 import de.jexcellence.jehibernate.entity.base.Identifiable;
 import de.jexcellence.jehibernate.exception.EntityNotFoundException;
+import de.jexcellence.jehibernate.exception.RepositoryException;
 import de.jexcellence.jehibernate.exception.TransactionException;
 import de.jexcellence.jehibernate.exception.ValidationException;
 import de.jexcellence.jehibernate.repository.query.QueryBuilder;
@@ -20,9 +21,13 @@ import jakarta.persistence.criteria.Root;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -100,7 +106,87 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
         this.entityManagerFactory = entityManagerFactory;
         this.entityClass = entityClass;
     }
-    
+
+    /**
+     * Constructs a repository that infers its entity class from the generic type argument, so
+     * subclasses need not pass {@code Class<T>} explicitly:
+     * <pre>{@code
+     * public class WarpRepository extends AbstractCrudRepository<Warp, Long> {
+     *     public WarpRepository(ExecutorService executor, EntityManagerFactory emf) {
+     *         super(executor, emf);   // Warp is resolved by reflection
+     *     }
+     * }
+     * }</pre>
+     * The type is resolved from the concrete class's generic superclass chain (including an
+     * intermediate {@link AbstractCachedRepository}). Use the explicit
+     * {@link #AbstractCrudRepository(ExecutorService, EntityManagerFactory, Class)} constructor for
+     * repositories whose entity type cannot be resolved this way (e.g. a raw, non-parameterized
+     * subclass).
+     *
+     * @param executorService the executor service for async operations
+     * @param entityManagerFactory the JPA entity manager factory
+     * @throws RepositoryException if the entity type cannot be resolved
+     */
+    @SuppressWarnings("unchecked")
+    protected AbstractCrudRepository(
+        ExecutorService executorService,
+        EntityManagerFactory entityManagerFactory
+    ) {
+        this.executorService = executorService;
+        this.entityManagerFactory = entityManagerFactory;
+        this.entityClass = (Class<T>) resolveEntityClass(getClass());
+    }
+
+    /**
+     * Resolves the first type argument bound to {@link AbstractCrudRepository} by walking the generic
+     * superclass chain of {@code concreteClass}, substituting type variables level by level so an
+     * intermediate base class (such as {@link AbstractCachedRepository}) is handled correctly.
+     *
+     * @param concreteClass the concrete repository class
+     * @return the resolved entity class
+     * @throws RepositoryException if it cannot be resolved to a class
+     */
+    private static Class<?> resolveEntityClass(Class<?> concreteClass) {
+        Map<TypeVariable<?>, Type> bindings = new HashMap<>();
+        Class<?> current = concreteClass;
+        while (current != null && current != Object.class) {
+            Type superType = current.getGenericSuperclass();
+            if (!(superType instanceof ParameterizedType parameterized)) {
+                current = current.getSuperclass();
+                continue;
+            }
+            Class<?> rawSuper = (Class<?>) parameterized.getRawType();
+            TypeVariable<?>[] params = rawSuper.getTypeParameters();
+            Type[] actuals = parameterized.getActualTypeArguments();
+            Map<TypeVariable<?>, Type> resolved = new HashMap<>();
+            for (int i = 0; i < params.length; i++) {
+                Type actual = actuals[i];
+                while (actual instanceof TypeVariable<?> variable && bindings.containsKey(variable)) {
+                    actual = bindings.get(variable);
+                }
+                resolved.put(params[i], actual);
+            }
+            if (rawSuper == AbstractCrudRepository.class) {
+                Type entityType = resolved.get(params[0]);
+                if (entityType instanceof Class<?> entityClass) {
+                    return entityClass;
+                }
+                if (entityType instanceof ParameterizedType parameterizedEntity
+                    && parameterizedEntity.getRawType() instanceof Class<?> rawEntity) {
+                    return rawEntity;
+                }
+                throw new RepositoryException(
+                    "Could not resolve the entity class for " + concreteClass.getName()
+                        + "; pass it explicitly via super(executor, emf, EntityType.class).");
+            }
+            bindings = resolved;
+            current = rawSuper;
+        }
+        throw new RepositoryException(
+            concreteClass.getName() + " does not extend AbstractCrudRepository with a concrete entity type;"
+                + " pass the entity class explicitly via super(executor, emf, EntityType.class).");
+    }
+
     @Override
     public T create(T entity) {
         return executeInTransaction(em -> {
@@ -391,23 +477,24 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
     }
     
     /**
-     * Finds all entities matching the given predicate.
+     * Finds all entities matching the given in-memory predicate.
      * <p>
-     * This is a Java 24 convenience method for functional-style filtering.
-     * <b>Note:</b> This loads all entities into memory - use with caution for large datasets.
-     * For database-level filtering, use {@link #query()} or {@link #findAll(Specification)}.
+     * <b>⚠ Full-table scan.</b> This method calls {@link #findAll()} and filters the result in Java,
+     * so it loads <em>every</em> row of the table into memory regardless of how many match. It is only
+     * appropriate for small or already-cached tables. For anything that can grow, filter in SQL with
+     * {@link #query()} or {@link #findAll(Specification)} instead — they push the predicate to the
+     * database and return only matching rows.
      * <p>
-     * <b>Example:</b>
+     * <b>Example (small/cached data only):</b>
      * <pre>{@code
-     * List<User> premiumUsers = repo.findAllMatching(
-     *     u -> u.isPremium() && u.isActive()
-     * );
+     * List<Role> adminRoles = roleRepo.findAllMatching(Role::isAdmin);
      * }</pre>
      *
-     * @param predicate the filter predicate
+     * @param predicate the in-memory filter predicate
      * @return filtered list of entities
+     * @apiNote Prefer {@link #findAll(Specification)} or {@link #query()} for database-level filtering.
      */
-    public List<T> findAllMatching(java.util.function.Predicate<T> predicate) {
+    public List<T> findAllMatching(Predicate<T> predicate) {
         return findAll().stream()
             .filter(predicate)
             .toList();

@@ -129,14 +129,62 @@ public abstract class AbstractCachedRepository<T, I, K> extends AbstractCrudRepo
         super(executorService, entityManagerFactory, entityClass);
         this.keyExtractor = keyExtractor;
         this.idExtractor = createIdExtractor(entityClass);
-
         Duration jitteredExpiration = applyJitter(config.expiration(), config.jitterPercent());
-
         this.keyCache = buildCache(config, jitteredExpiration);
         this.idCache = buildCache(config, jitteredExpiration);
+        logCacheInit(config);
+    }
 
+    /**
+     * Cached-repository constructor that infers the entity class from the generic type argument, so
+     * subclasses need not pass {@code Class<T>}:
+     * <pre>{@code
+     * public class PlayerRepository extends AbstractCachedRepository<PlayerData, UUID, UUID> {
+     *     public PlayerRepository(ExecutorService ex, EntityManagerFactory emf) {
+     *         super(ex, emf, PlayerData::getId);   // PlayerData resolved by reflection
+     *     }
+     * }
+     * }</pre>
+     *
+     * @param executorService the executor service for async operations
+     * @param entityManagerFactory the JPA entity manager factory
+     * @param keyExtractor extracts the cache key from an entity
+     */
+    protected AbstractCachedRepository(
+        ExecutorService executorService,
+        EntityManagerFactory entityManagerFactory,
+        Function<T, K> keyExtractor
+    ) {
+        this(executorService, entityManagerFactory, keyExtractor, CacheConfig.builder().build());
+    }
+
+    /**
+     * As {@link #AbstractCachedRepository(ExecutorService, EntityManagerFactory, Function)} but with an
+     * explicit cache configuration. The entity class is inferred from the generic type argument.
+     *
+     * @param executorService the executor service for async operations
+     * @param entityManagerFactory the JPA entity manager factory
+     * @param keyExtractor extracts the cache key from an entity
+     * @param config the cache configuration
+     */
+    protected AbstractCachedRepository(
+        ExecutorService executorService,
+        EntityManagerFactory entityManagerFactory,
+        Function<T, K> keyExtractor,
+        CacheConfig config
+    ) {
+        super(executorService, entityManagerFactory);   // entity class resolved by reflection
+        this.keyExtractor = keyExtractor;
+        this.idExtractor = createIdExtractor(this.entityClass);
+        Duration jitteredExpiration = applyJitter(config.expiration(), config.jitterPercent());
+        this.keyCache = buildCache(config, jitteredExpiration);
+        this.idCache = buildCache(config, jitteredExpiration);
+        logCacheInit(config);
+    }
+
+    private void logCacheInit(CacheConfig config) {
         LOGGER.info("Cache initialized for {} — maxSize={}, expiration={} (jitter={}%), strategy={}, refresh={}",
-            entityClass.getSimpleName(), config.maxSize(), config.expiration(), config.jitterPercent(),
+            this.entityClass.getSimpleName(), config.maxSize(), config.expiration(), config.jitterPercent(),
             config.expireAfterAccess() ? "expireAfterAccess" : "expireAfterWrite",
             config.refreshAfterWrite() != null ? config.refreshAfterWrite() : "disabled");
     }
