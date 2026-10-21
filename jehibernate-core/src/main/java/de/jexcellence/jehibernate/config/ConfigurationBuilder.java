@@ -531,7 +531,13 @@ public final class ConfigurationBuilder {
         if (!usesConnectionProvider) {
             config.put(AvailableSettings.JAKARTA_NON_JTA_DATASOURCE, managedDataSource);
         }
-        config.put(AvailableSettings.DIALECT, databaseConfig.dialect());
+        // Only pin the dialect when the caller forced one. Otherwise let Hibernate auto-detect it
+        // from the connection — pinning the value Hibernate would choose anyway is deprecated and
+        // logs HHH90000025 on every boot (see DatabaseConfig.Builder.build()).
+        String dialect = databaseConfig.dialect();
+        if (dialect != null && !dialect.isBlank()) {
+            config.put(AvailableSettings.DIALECT, dialect);
+        }
         applyMultiTenancy(config);
 
         // Sensible defaults — caller-supplied values already in `properties` take precedence

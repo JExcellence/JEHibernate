@@ -104,8 +104,11 @@ public record DatabaseConfig(
         
         public DatabaseConfig build() {
             String finalDriver = driver != null ? driver : type.getDriverClass();
-            String finalDialect = dialect != null ? dialect : type.getDialectClass();
-            return new DatabaseConfig(type, url, username, password, finalDriver, finalDialect);
+            // Dialect is left null unless the caller set one explicitly. Hibernate 6/7 auto-detects
+            // the dialect from the JDBC connection metadata, and setting hibernate.dialect to the
+            // value Hibernate would pick anyway is deprecated (HHH90000025). The per-type dialect is
+            // still available via DatabaseType.getDialectClass() for callers who want to force one.
+            return new DatabaseConfig(type, url, username, password, finalDriver, dialect);
         }
     }
 }
