@@ -1,5 +1,5 @@
 [versions]
-hibernate = "7.1.4.Final"
+hibernate = "7.4.13.Final"
 reflections = "0.10.2"
 caffeine = "3.3.1"
 slf4j = "2.0.20"

@@ -21,10 +21,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Verifies that the {@code @Version} column is nullable so {@code hbm2ddl.auto=update} can add it to
- * an already-populated table (the primitive {@code int} → {@code NOT NULL} DDL would otherwise fail
- * the H2 table rebuild), while optimistic locking and fresh-schema creation keep working.
+ * Verifies the optimistic-locking {@code @Version} column behavior on Hibernate 7.2+, where
+ * {@code @Version} columns are {@code NOT NULL} unconditionally.
  * <p>
+ * Two supported shapes:
+ * <ul>
+ *   <li><b>Fresh schema</b> — the column is created {@code NOT NULL DEFAULT 0} and versions start at 0.</li>
+ *   <li><b>Existing populated table</b> — the column is added by a <em>migration</em>
+ *       ({@code ALTER TABLE … ADD COLUMN version INTEGER NOT NULL DEFAULT 0}), not by
+ *       {@code hbm2ddl.auto=update}. Hibernate 7.2+ cannot add a {@code NOT NULL} column to a populated
+ *       table via {@code update} (the statement fails for existing rows and aborts the whole schema
+ *       update), so schema evolution for this column belongs to Flyway/Liquibase. This test simulates
+ *       the migrated table and boots with {@code ddl-auto=validate}.</li>
+ * </ul>
  * Isolated package so {@code VersionedThing} does not leak into other suites' package scans.
  */
 class VersionMigrationTest {
@@ -66,37 +75,7 @@ class VersionMigrationTest {
     }
 
     @Test
-    void updateAddsNullableVersionColumnToPopulatedTable() {
-        String url = "jdbc:h2:mem:versionmig;DB_CLOSE_DELAY=-1";
-
-        // A pre-existing, populated table WITHOUT the version column (as an older schema would have).
-        jdbc(url, s -> {
-            try {
-                s.execute("CREATE TABLE versioned_thing ("
-                    + "id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))");
-                s.execute("INSERT INTO versioned_thing (name) VALUES ('alice')");
-                s.execute("INSERT INTO versioned_thing (name) VALUES ('bob')");
-            } catch (SQLException e) {
-                throw new IllegalStateException(e);
-            }
-        });
-
-        try (JEHibernate jeHibernate = build(url, "update")) {
-            var repo = jeHibernate.repositories().get(VersionedThingRepository.class);
-
-            // The ALTER succeeded (no silent DDL warning), the two existing rows survived, and they
-            // read version 0 (the DB value is null; the null-safe getter returns 0).
-            var all = repo.findAll();
-            assertThat(all).hasSize(2);
-            assertThat(all).allMatch(t -> t.getVersion() == 0);
-
-            // The column exists and is nullable.
-            assertThat(isNullable(url, "VERSIONED_THING", "VERSION")).isEqualTo("YES");
-        }
-    }
-
-    @Test
-    void freshSchemaCreatesNullableVersionStartingAtZero() {
+    void freshSchemaCreatesVersionNotNullStartingAtZero() {
         String url = "jdbc:h2:mem:versionfresh;DB_CLOSE_DELAY=-1";
 
         try (JEHibernate jeHibernate = build(url, "create-drop")) {
@@ -104,7 +83,9 @@ class VersionMigrationTest {
 
             VersionedThing saved = repo.create(new VersionedThing("fresh"));
             assertThat(saved.getVersion()).isZero();                 // first persist starts at 0
-            assertThat(isNullable(url, "VERSIONED_THING", "VERSION")).isEqualTo("YES");
+
+            // Hibernate 7.2+ maps @Version as NOT NULL; @ColumnDefault("0") supplies the DDL default.
+            assertThat(isNullable(url, "VERSIONED_THING", "VERSION")).isEqualTo("NO");
         }
     }
 
@@ -143,11 +124,13 @@ class VersionMigrationTest {
     }
 
     @Test
-    void stricterExistingNotNullVersionColumnStillWorks() {
-        String url = "jdbc:h2:mem:versionstrict;DB_CLOSE_DELAY=-1";
+    void migratedPopulatedTableValidatesAndOperates() {
+        String url = "jdbc:h2:mem:versionmigrated;DB_CLOSE_DELAY=-1";
 
-        // A DB where the column already exists as NOT NULL DEFAULT 0 — Hibernate never writes null on
-        // persist, so a stricter existing column is harmless.
+        // The state AFTER a migration has run against a previously version-less, populated table:
+        // version was added NOT NULL DEFAULT 0 (existing rows backfilled to 0), alongside the
+        // timestamp columns BaseEntity maps. This is the supported replacement for hbm2ddl=update,
+        // which cannot add a NOT NULL column to a populated table on Hibernate 7.2+.
         jdbc(url, s -> {
             try {
                 s.execute("CREATE TABLE versioned_thing ("
@@ -159,9 +142,12 @@ class VersionMigrationTest {
             }
         });
 
-        try (JEHibernate jeHibernate = build(url, "update")) {
+        // validate (not update): the migrated schema must already match the mapping exactly.
+        try (JEHibernate jeHibernate = build(url, "validate")) {
             var repo = jeHibernate.repositories().get(VersionedThingRepository.class);
+
             assertThat(repo.count()).isEqualTo(1);
+            assertThat(repo.findAll()).allMatch(t -> t.getVersion() == 0);   // backfilled rows read 0
 
             VersionedThing created = repo.create(new VersionedThing("new"));
             assertThat(created.getVersion()).isZero();

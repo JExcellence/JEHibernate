@@ -5,6 +5,7 @@ import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -88,20 +89,27 @@ public abstract class BaseEntity<I> implements Identifiable<I>, Serializable {
     private final transient UUID identityToken = UUID.randomUUID();
 
     /**
-     * Optimistic-locking version. Nullable ({@code Integer}, not {@code int}) so that
-     * {@code hbm2ddl.auto=update} can add this column to an already-populated table: a primitive
-     * {@code int} maps to {@code NOT NULL}, which H2/MySQL/MariaDB/PostgreSQL cannot satisfy for the
-     * existing rows during the table rebuild. Hibernate assigns {@code 0} on persist, so {@code null}
-     * only ever appears on rows that predate the column. {@code @Version} on {@code Integer} is
-     * permitted by the JPA spec.
+     * Optimistic-locking version. The column is {@code NOT NULL DEFAULT 0}: Hibernate 7.2+ maps
+     * {@code @Version} as {@code NOT NULL} unconditionally (it ignores {@code @Column(nullable = true)}),
+     * and {@link ColumnDefault @ColumnDefault("0")} puts the default into the generated DDL.
      * <p>
-     * Defaulted to {@code 0} (not left {@code null}) so a freshly constructed, detached entity —
-     * e.g. {@code new X(); x.setId(existingId)} passed to {@code createOrUpdate}/{@code merge} —
-     * carries version {@code 0} and matches an existing row's {@code where … and version=0}. The
-     * default does not affect column nullability (the {@code Integer} type does); rows loaded from
-     * the DB with a {@code null} version overwrite this default and read as {@code 0} via the getter.
+     * The field is a boxed {@code Integer} (not primitive {@code int}) only for transition tolerance:
+     * a database created by JEHibernate 4.0.1/4.0.2 has a <em>nullable</em> version column that may
+     * hold {@code null} on rows predating it. Until such a column is migrated to {@code NOT NULL}
+     * (see the migration guide), reading one of those rows must not blow up on unboxing, so the
+     * getter is null-safe and returns {@code 0}. On a schema created by 4.1+ the column is never null.
+     * <p>
+     * Adding this column to an <em>already-populated</em> table is a migration step (Flyway/Liquibase),
+     * not something {@code hbm2ddl.auto=update} can do: Hibernate 7.2+ emits
+     * {@code add column version integer not null}, which databases reject for existing rows, and the
+     * failure aborts the whole schema update. The migration guide ships the {@code ALTER TABLE} to run.
+     * <p>
+     * Defaulted to {@code 0} so a freshly constructed, detached entity — e.g.
+     * {@code new X(); x.setId(existingId)} passed to {@code createOrUpdate}/{@code merge} — carries
+     * version {@code 0} and matches an existing row's {@code where … and version=0}.
      */
     @Version
+    @ColumnDefault("0")
     private Integer version = 0;
 
     @CreationTimestamp
@@ -131,8 +139,8 @@ public abstract class BaseEntity<I> implements Identifiable<I>, Serializable {
     }
     
     /**
-     * Returns the optimistic-locking version. Null-safe: rows that predate the version column
-     * (added later via {@code hbm2ddl.auto=update}) read as {@code 0}.
+     * Returns the optimistic-locking version. Null-safe: a legacy row from a 4.0.1/4.0.2 nullable
+     * column that still holds {@code null} (before the NOT NULL migration) reads as {@code 0}.
      *
      * @return the version, or {@code 0} if not yet set
      */

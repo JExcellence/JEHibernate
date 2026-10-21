@@ -4,7 +4,43 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.1.0] — 2026-10-21
+
+### Changed — Hibernate 7.4 and the `@Version` column contract
+
+- **Hibernate ORM `7.1.4 → 7.4.13`.** Hibernate 7.2+ maps `@Version` columns as **`NOT NULL`
+  unconditionally** (it ignores `@Column(nullable = true)`). JEHibernate's `BaseEntity.version` is now
+  mapped `@Version @ColumnDefault("0")`, so a fresh schema creates `version INTEGER NOT NULL DEFAULT 0`
+  and versions start at 0. The field stays a boxed `Integer` and the `getVersion()` accessor stays
+  null-safe purely for transition tolerance (see migration below); no public API change.
+
+- **The 4.0.1/4.0.2 nullable-`@Version` behavior is gone** because Hibernate closed it: on 7.2+,
+  `hbm2ddl.auto=update` **cannot** add the `NOT NULL` version column to an already-populated table (the
+  `ADD COLUMN` fails for existing rows and aborts the entire schema update, so the timestamp columns are
+  left unadded too). This is consistent with 4.0's "migrations own the schema" stance (ADR-0002):
+  evolving an existing table is a Flyway/Liquibase step, not an `hbm2ddl` one.
+
+#### Migration — consumers adopting 4.1.0 on an EXISTING database
+
+Run once per `BaseEntity`/`LongIdEntity`/`UuidEntity`/`StringIdEntity` table (replace `your_table`):
+
+- **You are coming from 4.0.1/4.0.2** (the column exists but is **nullable**):
+
+  ```sql
+  UPDATE your_table SET version = 0 WHERE version IS NULL;
+  ALTER TABLE your_table ALTER COLUMN version SET NOT NULL;   -- PostgreSQL/H2
+  -- MySQL/MariaDB: ALTER TABLE your_table MODIFY version INTEGER NOT NULL DEFAULT 0;
+  ```
+
+- **The table never had a version column** (adding optimistic locking now):
+
+  ```sql
+  ALTER TABLE your_table ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+  ```
+
+  Ship this as a Flyway migration (`V…__add_version.sql` under `classpath:db/migration`); do not rely on
+  `hbm2ddl.auto=update`. A fresh database created by 4.1.0 needs no migration. `VersionMigrationTest`
+  covers the fresh-schema, optimistic-locking, and migrated-populated-table (`validate`) paths.
 
 ### Changed — build toolchain
 
