@@ -27,6 +27,8 @@ dependencies {
     // ── Test ──
     testImplementation(libs.assertj.core)
     testImplementation(libs.h2)
+    // An external HikariCP pool, as Spring Boot supplies it, for the External*DataSourceIT suites.
+    testImplementation(libs.hikari)
     // JDBC drivers for the per-database integration tests (container modules come via api).
     testRuntimeOnly(libs.postgresql)
     testRuntimeOnly(libs.mysql)
