@@ -4,6 +4,23 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`jehibernate-bom`** — a Maven BOM (`de.jexcellence.hibernate:jehibernate-bom`) that aligns the
+  versions of all JEHibernate modules. Import it once and omit per-module versions.
+- **Entity-class-inferring repository constructors.** Repositories may now omit the `Class<T>` argument:
+  `super(executor, emf)` on `AbstractCrudRepository`, and `super(executor, emf, keyExtractor)` on
+  `AbstractCachedRepository`. The entity type is resolved from the generic superclass chain. The explicit
+  `Class<T>` constructors remain for repositories whose type cannot be resolved by reflection.
+
+### Changed
+
+- `AbstractCrudRepository.findAllMatching(Predicate)` Javadoc now prominently warns that it is an
+  in-memory full-table scan, and points to `query()` / `findAll(Specification)` for database-level
+  filtering. (No behavior change.)
+
 ## [4.1.0] — 2026-10-21
 
 ### Changed — Hibernate 7.4 and the `@Version` column contract

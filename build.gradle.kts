@@ -10,6 +10,12 @@ allprojects {
 
 // ── Shared configuration for every JEHibernate module ───────────────────────
 subprojects {
+    // The BOM is a java-platform module (no sources); it must not get the java-library plugin or the
+    // Java toolchain/compile/test wiring below, which would conflict with java-platform.
+    if (name == "jehibernate-bom") {
+        return@subprojects
+    }
+
     apply(plugin = "java-library")
 
     // Repositories are declared centrally in settings.gradle.kts

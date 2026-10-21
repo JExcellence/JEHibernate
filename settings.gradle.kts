@@ -25,6 +25,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "JEHibernate"
 
+include("jehibernate-bom")
 include("jehibernate-core")
 include("jehibernate-spring-boot")
 include("jehibernate-plugin")
