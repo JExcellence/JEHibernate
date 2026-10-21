@@ -1,5 +1,6 @@
 package de.jexcellence.jehibernate.config;
 
+import com.zaxxer.hikari.HikariDataSource;
 import de.jexcellence.jehibernate.audit.JEHibernateRevisionEntity;
 import de.jexcellence.jehibernate.exception.ConfigurationException;
 import de.jexcellence.jehibernate.exception.JEHibernateException;
@@ -27,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -552,8 +555,38 @@ public final class ConfigurationBuilder {
         config.putIfAbsent(AvailableSettings.ORDER_UPDATES, true);
         config.putIfAbsent("hibernate.jdbc.batch_versioned_data", true);
         config.putIfAbsent(AvailableSettings.QUERY_PLAN_CACHE_MAX_SIZE, 2048);
-        config.putIfAbsent(AvailableSettings.CONNECTION_PROVIDER_DISABLES_AUTOCOMMIT, true);
+        // Promise Hibernate that connections arrive with autocommit off only when that is true:
+        // the owned pool disables it, an external DataSource may not (Spring Boot's HikariCP
+        // defaults to autoCommit=true). A false promise makes PostgreSQL/MySQL reject the commit.
+        config.putIfAbsent(AvailableSettings.CONNECTION_PROVIDER_DISABLES_AUTOCOMMIT, connectionsHaveAutoCommitDisabled());
 
         return config;
+    }
+
+    /**
+     * Whether every connection Hibernate can obtain is known to have autocommit disabled. The
+     * owned pool always does; user-supplied data sources (the external one and DATABASE
+     * multi-tenancy targets) are inspected, and anything that cannot be confirmed counts as
+     * autocommit on, which only costs Hibernate a {@code setAutoCommit(false)} per transaction.
+     */
+    private boolean connectionsHaveAutoCommitDisabled() {
+        boolean primaryOff = ownsDataSource || reportsAutoCommitDisabled(managedDataSource);
+        if (multiTenancyConfig.strategy() == MultiTenancyStrategy.DATABASE) {
+            return primaryOff && multiTenancyConfig.tenantDataSources().values().stream()
+                .allMatch(ConfigurationBuilder::reportsAutoCommitDisabled);
+        }
+        return primaryOff;
+    }
+
+    private static boolean reportsAutoCommitDisabled(DataSource dataSource) {
+        if (dataSource instanceof HikariDataSource hikari) {
+            return !hikari.isAutoCommit();
+        }
+        try (Connection connection = dataSource.getConnection()) {
+            return !connection.getAutoCommit();
+        } catch (SQLException e) {
+            LOGGER.warn("Could not read autocommit from the supplied DataSource; letting Hibernate manage it", e);
+            return false;
+        }
     }
 }
