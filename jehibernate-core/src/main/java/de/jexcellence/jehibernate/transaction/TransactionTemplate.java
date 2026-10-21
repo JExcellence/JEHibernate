@@ -63,11 +63,34 @@ public final class TransactionTemplate {
      */
     public <T> T execute(Function<EntityManager, T> action) {
         EntityManager em = entityManagerFactory.createEntityManager();
-        EntityTransaction tx = null;
         try (em) {
-            tx = em.getTransaction();
+            return inTransaction(em, action);
+        } catch (Exception e) {
+            throw classifyException(e);
+        }
+    }
+
+    /**
+     * Runs {@code work} in a transaction on an already open {@link EntityManager}: begin, commit,
+     * and on failure a rollback while the EntityManager is still open. The caller owns the
+     * EntityManager and closes it afterwards.
+     * <p>
+     * The rollback must happen before the EntityManager is closed: once it is closed, Hibernate
+     * releases the connection and {@code rollback()} fails, leaving the open transaction to
+     * whatever the pool does with a returned connection.
+     *
+     * @param <T>  the return type
+     * @param em   an open EntityManager without an active transaction
+     * @param work the work to execute
+     * @return the result of the work
+     * @throws TransactionException if the transaction fails
+     * @throws ValidationException  if validation fails
+     */
+    public static <T> T inTransaction(EntityManager em, Function<EntityManager, T> work) {
+        EntityTransaction tx = em.getTransaction();
+        try {
             tx.begin();
-            T result = action.apply(em);
+            T result = work.apply(em);
             tx.commit();
             return result;
         } catch (Exception e) {
@@ -142,8 +165,8 @@ public final class TransactionTemplate {
         return new TransactionException("Unexpected error during transaction", e);
     }
 
-    private void rollbackQuietly(EntityTransaction transaction) {
-        if (transaction == null || !transaction.isActive()) {
+    private static void rollbackQuietly(EntityTransaction transaction) {
+        if (!transaction.isActive()) {
             return;
         }
         try {

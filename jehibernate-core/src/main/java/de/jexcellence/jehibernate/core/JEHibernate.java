@@ -11,7 +11,6 @@ import de.jexcellence.jehibernate.session.SessionContext;
 import de.jexcellence.jehibernate.transaction.TransactionTemplate;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.EntityTransaction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -271,16 +270,9 @@ public final class JEHibernate implements AutoCloseable {
      */
     public <R> R withSession(Function<SessionContext, R> work) {
         EntityManager em = entityManagerFactory.createEntityManager();
-        EntityTransaction tx = null;
         try (em) {
-            tx = em.getTransaction();
-            tx.begin();
-            SessionContext session = new SessionContext(em, executorService);
-            R result = work.apply(session);
-            tx.commit();
-            return result;
+            return TransactionTemplate.inTransaction(em, open -> work.apply(new SessionContext(open, executorService)));
         } catch (Exception e) {
-            rollbackQuietly(tx);
             throw TransactionTemplate.classifyException(e);
         }
     }
@@ -313,15 +305,6 @@ public final class JEHibernate implements AutoCloseable {
             return work.apply(session);
         } catch (Exception e) {
             throw TransactionTemplate.classifyException(e);
-        }
-    }
-
-    private void rollbackQuietly(EntityTransaction transaction) {
-        if (transaction == null || !transaction.isActive()) return;
-        try {
-            transaction.rollback();
-        } catch (Exception e) {
-            LOGGER.warn("Failed to rollback transaction", e);
         }
     }
 

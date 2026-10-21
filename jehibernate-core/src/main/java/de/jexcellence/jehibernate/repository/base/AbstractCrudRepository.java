@@ -12,7 +12,6 @@ import de.jexcellence.jehibernate.transaction.TransactionTemplate;
 import jakarta.persistence.EntityGraph;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.PersistenceException;
 import jakarta.persistence.Subgraph;
 import jakarta.persistence.criteria.CriteriaBuilder;
@@ -671,16 +670,9 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
      */
     public <R> R withSession(Function<SessionContext, R> work) {
         EntityManager em = entityManagerFactory.createEntityManager();
-        EntityTransaction tx = null;
         try (em) {
-            tx = em.getTransaction();
-            tx.begin();
-            SessionContext session = new SessionContext(em, executorService);
-            R result = work.apply(session);
-            tx.commit();
-            return result;
+            return TransactionTemplate.inTransaction(em, open -> work.apply(new SessionContext(open, executorService)));
         } catch (Exception e) {
-            rollbackQuietly(tx);
             throw TransactionTemplate.classifyException(e);
         }
     }
@@ -748,38 +740,16 @@ public abstract class AbstractCrudRepository<T, I> implements QueryableRepositor
      */
     protected <R> R executeInTransaction(Function<EntityManager, R> action) {
         EntityManager em = entityManagerFactory.createEntityManager();
-        EntityTransaction tx = null;
         long start = System.nanoTime();
         try (em) {
-            tx = em.getTransaction();
-            tx.begin();
-            R result = action.apply(em);
-            tx.commit();
+            R result = TransactionTemplate.inTransaction(em, action);
             long durationMs = (System.nanoTime() - start) / 1_000_000;
             if (durationMs > 500) {
                 LOGGER.warn("Slow transaction on {} took {}ms", entityClass.getSimpleName(), durationMs);
             }
             return result;
         } catch (Exception e) {
-            rollbackQuietly(tx);
             throw TransactionTemplate.classifyException(e);
-        }
-    }
-    
-    /**
-     * Rolls back a transaction quietly without throwing exceptions.
-     * <p>
-     * This is a utility method used internally to ensure transaction rollback
-     * doesn't mask the original exception.
-     *
-     * @param transaction the transaction to rollback (may be null)
-     */
-    private void rollbackQuietly(EntityTransaction transaction) {
-        if (transaction == null || !transaction.isActive()) return;
-        try {
-            transaction.rollback();
-        } catch (Exception e) {
-            LOGGER.warn("Failed to rollback transaction", e);
         }
     }
     
