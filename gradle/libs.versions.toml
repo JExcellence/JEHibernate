@@ -1,24 +1,24 @@
 [versions]
 hibernate = "7.1.4.Final"
 reflections = "0.10.2"
-caffeine = "3.2.0"
-slf4j = "2.0.16"
-jetbrainsAnnotations = "26.0.1"
-postgresql = "42.7.7"
+caffeine = "3.3.1"
+slf4j = "2.0.20"
+jetbrainsAnnotations = "26.1.0"
+postgresql = "42.7.14"
 mysql = "9.3.0"
-mariadb = "3.5.2"
+mariadb = "3.5.10"
 mssql = "12.8.1.jre11"
-h2 = "2.4.240"
-jackson = "2.18.2"
-hikari = "6.2.1"
-flyway = "11.1.1"
+h2 = "2.5.252"
+jackson = "2.22.4"
+hikari = "6.3.0"
+flyway = "11.20.3"
 liquibase = "4.30.0"
 springBoot = "3.4.1"
 paper = "1.21.4-R0.1-SNAPSHOT"
 junit = "5.11.4"
-assertj = "3.27.3"
-mockito = "5.15.2"
-testcontainers = "1.20.4"
+assertj = "3.27.7"
+mockito = "5.24.0"
+testcontainers = "1.21.4"
 
 [libraries]
 # ── Hibernate platform (BOM) + modules ──
@@ -62,8 +62,8 @@ spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-star
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test", version.ref = "springBoot" }
 spring-boot-test = { module = "org.springframework.boot:spring-boot-test", version.ref = "springBoot" }
 spring-boot-test-autoconfigure = { module = "org.springframework.boot:spring-boot-test-autoconfigure", version.ref = "springBoot" }
-spring-orm = { module = "org.springframework:spring-orm", version = "6.2.1" }
-spring-test = { module = "org.springframework:spring-test", version = "6.2.1" }
+spring-orm = { module = "org.springframework:spring-orm", version = "6.2.19" }
+spring-test = { module = "org.springframework:spring-test", version = "6.2.19" }
 
 # ── Bukkit/Paper ──
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }

@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "de.jexcellence.hibernate"
-    version = "4.0.3"
+    version = "4.0.4"
 }
 
 // ── Shared configuration for every JEHibernate module ───────────────────────

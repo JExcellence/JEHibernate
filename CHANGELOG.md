@@ -4,6 +4,31 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.4] — 2026-10-21
+
+### Changed — dependency refresh (verified; full test suite green)
+
+Within-major, backward-compatible updates only. No API or behavior change.
+
+- Hibernate HikariCP pool `6.2.1 → 6.3.0`; Caffeine `3.2.0 → 3.3.1`; Jackson `2.18.2 → 2.22.4`;
+  Flyway `11.1.1 → 11.20.3`; SLF4J `2.0.16 → 2.0.20`.
+- JDBC drivers: PostgreSQL `42.7.7 → 42.7.14`; MariaDB `3.5.2 → 3.5.10`; H2 (test/compile-only)
+  `2.4.240 → 2.5.252`.
+- Spring Framework (spring-orm/spring-test) `6.2.1 → 6.2.19`; JetBrains annotations `26.0.1 → 26.1.0`.
+- Test tooling: AssertJ `3.27.3 → 3.27.7`; Mockito `5.15.2 → 5.24.0`; Testcontainers `1.20.4 → 1.21.4`.
+
+### Held back deliberately (require a decision, not a patch)
+
+- **Hibernate `7.1.4 → 7.4.x`** — Hibernate 7.2+ generates `@Version` columns as `NOT NULL`
+  **unconditionally** (it ignores `@Column(nullable = true)`). That defeats the nullable-`@Version`
+  migration behavior added in 4.0.1/4.0.2 (verified: `VersionMigrationTest` fails on 7.4). Moving to
+  7.2+ needs a different approach to the populated-table-migration case first.
+- **Spring Boot `3.4.1 → 3.5.x` and JUnit `5.11 → 5.12+`** — both pull a JUnit Platform newer than the
+  launcher bundled with Gradle 8.8, which crashes test teardown. These unblock after a Gradle upgrade
+  (8.8 also does not officially support the JDK 24 toolchain in use).
+- **MySQL connector `9.3.0 → 26.x`, MSSQL `12.8.x → 13.x`, Liquibase `4.30 → 5.x`** — driver/tool major
+  versions; deferred pending a compatibility check.
+
 ## [4.0.3] — 2026-10-21
 
 ### Fixed
