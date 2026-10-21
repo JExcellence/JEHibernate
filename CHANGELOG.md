@@ -4,6 +4,26 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.3] — 2026-10-21
+
+### Fixed
+
+- **fix(config): let Hibernate auto-detect the dialect instead of pinning it.** `ConfigurationBuilder`
+  unconditionally set `hibernate.dialect` (filled from the `DatabaseType` default), so every boot logged
+  Hibernate's `HHH90000025` deprecation warning (*"H2Dialect does not need to be specified explicitly …"*).
+  Hibernate 6/7 resolves the dialect from the JDBC connection metadata, so JEHibernate now leaves it unset
+  unless the caller forces one via `.dialect(...)` or a namespaced `<type>.dialect` property.
+  `DatabaseType.getDialectClass()` remains available as the explicit escape hatch. No API change.
+
+### Note — `No SLF4J providers were found` in shaded plugins
+
+- This warning is **not** emitted by JEHibernate; it comes from a plugin that shades and **relocates**
+  `org.slf4j` (e.g. to `…remapped.org.slf4j`) while bundling the slf4j **API without a provider**. On
+  Paper, the fix is to **not relocate `org.slf4j`** — the server already provides slf4j-api and a
+  Log4j2-backed provider, so an un-relocated facade binds to the console. If you must relocate, bundle a
+  provider (`slf4j-jdk-platform-logging` or `slf4j-simple`) so its `META-INF/services` entry is relocated
+  with it. slf4j-api is present transitively via `reflections`, so this cannot be resolved library-side.
+
 ## [4.0.2] — 2026-09-30
 
 ### Fixed
