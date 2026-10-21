@@ -4,6 +4,36 @@ All notable changes to JEHibernate are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] — 2026-10-21
+
+### Fixed — critical, affects external DataSources (Spring Boot) on PostgreSQL & MySQL/MariaDB
+
+- **`hibernate.connection.provider_disables_autocommit` is only set when it is true.** JEHibernate set it
+  unconditionally, promising Hibernate that every connection arrives with autocommit off. 4.2.0 made that
+  true for the owned HikariCP pool, but a `DataSource` passed via `ConfigurationBuilder.dataSource(...)` —
+  which is what the Spring Boot starter does — is used as is, and Spring Boot's HikariCP defaults to
+  `autoCommit=true`. Hibernate then skipped `setAutoCommit(false)` and committed against an autocommit
+  connection: **PostgreSQL and MySQL reject the commit** (`Cannot commit when autoCommit is enabled`,
+  `Can't call commit when autocommit=true`), so every write threw even though each statement had already
+  been auto-committed, and rollbacks undid nothing. MariaDB accepts the commit but likewise loses
+  rollbacks. Present in 4.0.0–4.2.0 for external data sources; the owned pool was fine as of 4.2.0.
+- The flag is now `true` for the owned pool and for an external `DataSource` that is known to have
+  autocommit off: a `HikariDataSource` is checked via `isAutoCommit()`, any other `DataSource` by reading
+  `getAutoCommit()` from one connection at bootstrap. With DATABASE multi-tenancy every tenant data source
+  must qualify. Anything unconfirmed leaves the flag `false`, so Hibernate disables autocommit per
+  transaction itself. An explicit `property(...)` value still takes precedence.
+- **Workaround on 4.0.0–4.2.0:** set `spring.datasource.hikari.auto-commit=false` (or disable autocommit on
+  the `DataSource` you pass in).
+
+### Tests
+
+- `AutoCommitContractTest` (core, H2) pins the flag for the owned pool, external HikariCP with autocommit
+  on/off, a plain `DataSource`, and an explicit override.
+- `PostgresExternalDataSourceIT`, `MySqlExternalDataSourceIT`, `MariaDbExternalDataSourceIT` run CRUD and a
+  rolled-back transaction through an external HikariCP pool with `autoCommit=true` and `false` against real
+  databases (skipped without Docker). Without the fix, 5 of their 9 checks fail, plus 2 of the 5 in
+  `AutoCommitContractTest`.
+
 ## [4.2.0] — 2026-10-21
 
 ### Fixed — critical, affects PostgreSQL & MySQL
