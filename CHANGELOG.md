@@ -25,6 +25,20 @@ All notable changes to JEHibernate are documented here. The format is based on
 - **Workaround on 4.0.0–4.2.0:** set `spring.datasource.hikari.auto-commit=false` (or disable autocommit on
   the `DataSource` you pass in).
 
+### Fixed — failed transactions are rolled back before the EntityManager closes
+
+- `TransactionTemplate.execute`, `AbstractCrudRepository.executeInTransaction`, and both `withSession`
+  methods (`AbstractCrudRepository`, `JEHibernate`) closed the `EntityManager` via try-with-resources
+  before their `catch` block ran. The rollback then hit an already closed logical connection, failed with
+  `IllegalStateException: LogicalConnectionManagedImpl ... is closed`, and was only logged as
+  `Failed to rollback transaction`. The open transaction was left to the pool: HikariCP rolls back a
+  returned connection, so data was not affected there, but other pools or data sources could keep the
+  transaction open on the returned connection.
+- All four now go through the new `TransactionTemplate.inTransaction(EntityManager, Function)`, which
+  begins, commits, and on failure rolls back while the `EntityManager` is still open. The duplicated
+  private `rollbackQuietly` helpers in `AbstractCrudRepository` and `JEHibernate` are gone. Exception
+  classification is unchanged.
+
 ### Tests
 
 - `AutoCommitContractTest` (core, H2) pins the flag for the owned pool, external HikariCP with autocommit
@@ -33,6 +47,9 @@ All notable changes to JEHibernate are documented here. The format is based on
   rolled-back transaction through an external HikariCP pool with `autoCommit=true` and `false` against real
   databases (skipped without Docker). Without the fix, 5 of their 9 checks fail, plus 2 of the 5 in
   `AutoCommitContractTest`.
+- `RollbackBeforeCloseTest` (core, H2) makes each of the four transactional entry points fail after a
+  flushed insert on an unpooled data source and asserts that `rollback()` reaches the JDBC connection and
+  no row remains. All four fail without the fix.
 
 ## [4.2.0] — 2026-10-21
 
