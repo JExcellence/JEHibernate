@@ -40,6 +40,12 @@ jobs:
       #   SIGNING_PASSWORD                 -> passphrase for that key
       - name: Publish to Maven Central
         env:
+          # Registers the publishToMavenCentral / publishAndReleaseToMavenCentral tasks. The vanniktech
+          # plugin only creates them when this flag is set; without it the build fails with
+          # "Task 'publishAndReleaseToMavenCentral' not found". (Locally this lives in
+          # ~/.gradle/gradle.properties; the repo gradle.properties is gitignored, so it is set here.)
+          ORG_GRADLE_PROJECT_mavenCentralPublishing: "true"
+          ORG_GRADLE_PROJECT_signAllPublications: "true"
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.OSSRH_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.OSSRH_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
