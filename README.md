@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/Java-17%2B-orange" alt="Java 17+">
     <img src="https://img.shields.io/badge/Hibernate-7.x-59666C" alt="Hibernate 7.x">
     <img src="https://img.shields.io/badge/Tests-97%20passing-brightgreen" alt="Tests">
-    <img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="License">
+    <img src="https://img.shields.io/badge/License-MIT-blue" alt="License">
   </p>
 </p>
 
@@ -1004,6 +1004,6 @@ de.jexcellence.jehibernate
 
 ## License
 
-[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+[MIT License](https://opensource.org/licenses/MIT)
 
-Copyright 2026 JExcellence
+Copyright (c) 2025 JExcellence
