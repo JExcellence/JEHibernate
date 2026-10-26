@@ -221,7 +221,7 @@ repo.query().getPageAsync(0, 20)
 Reusable, composable query predicates:
 
 ```java
-Specification<PlayerData> richActive = Specifications.<PlayerData>equal("active", true)
+Specification<PlayerData> richActive = Specifications.<PlayerData>equalTo("active", true)
     .and(Specifications.greaterThan("balance", 10_000));
 
 List<PlayerData> players = repo.findAll(richActive);
@@ -230,7 +230,7 @@ boolean any = repo.existsBy(richActive);
 Optional<PlayerData> one = repo.findOne(richActive);
 ```
 
-Supports: `equal`, `notEqual`, `like`, `in`, `isNull`, `isNotNull`, `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual`, `between`. Nested properties work with dot notation: `"user.address.city"`.
+Supports: `equalTo`, `notEqualTo`, `like`, `in`, `isNull`, `isNotNull`, `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual`, `between`. Nested properties work with dot notation: `"user.address.city"`.
 
 ---
 
