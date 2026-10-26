@@ -7,183 +7,37 @@
   <p align="center">
     <img src="https://img.shields.io/badge/Java-17%2B-orange" alt="Java 17+">
     <img src="https://img.shields.io/badge/Hibernate-7.x-59666C" alt="Hibernate 7.x">
-    <img src="https://img.shields.io/badge/Tests-97%20passing-brightgreen" alt="Tests">
-    <img src="https://img.shields.io/badge/License-MIT-blue" alt="License">
+    <img src="https://img.shields.io/maven-central/v/de.jexcellence.hibernate/jehibernate-core?label=Maven%20Central" alt="Maven Central">
+    <img src="https://img.shields.io/badge/License-MIT-blue" alt="License: MIT">
   </p>
 </p>
 
 ---
 
-JEHibernate wraps Hibernate ORM with a clean, fluent API that eliminates 65%+ of database boilerplate. Designed around the Minecraft plugin lifecycle -- async operations that never block the main thread, cached repositories for instant player lookups, and session-scoped lazy loading that actually works.
+JEHibernate wraps Hibernate ORM with a fluent, type-safe repository API designed around the
+Minecraft plugin lifecycle: async operations that never block the main thread, cached repositories
+for fast player lookups, and session-scoped lazy loading. It runs anywhere Hibernate does, so the
+same code works in a plugin, a Spring Boot service, or a standalone application.
 
 **Runs on:** Spigot, Paper, Folia, Spring Boot, standalone Java applications.
-**Requires:** Java 17+ (virtual threads auto-enabled on 21+). Hibernate 7.x, Jakarta Persistence 3.1+.
+**Requires:** Java 17+ (virtual threads auto-enabled on 21+), Hibernate 7.x, Jakarta Persistence 3.1+.
 
 ---
 
-## 4.0 Highlights (breaking)
+## Install
 
-4.0 is a **multi-module** release. Pick the modules you need:
-
-| Module | Use it for |
-|---|---|
-| `jehibernate-core` | **Required.** The library — repositories, sessions, pooling, migration. |
-| `jehibernate-spring-boot` | Spring Boot auto-configuration that reuses your `DataSource` bean. |
-| `jehibernate-plugin` | Spigot/Paper `PropertyLoader` data-folder convenience. |
-| `jehibernate-testing` | Testcontainers + fixtures (test scope only). |
-
-What changed (see [CHANGELOG](CHANGELOG.md) and `docs/adr/`):
-
-- **HikariCP** is the default connection pool. Tune via `PoolConfig`; inspect via
-  `jeHibernate.getPoolHealth()`.
-- **Flyway migrations** run before Hibernate boots (`V001__init.sql` under
-  `classpath:db/migration`). Liquibase is opt-in.
-- **`ddl-auto` now defaults to `validate`** (was `update`) — migrations own the schema.
-- **Audit trail** via Hibernate Envers (`@Audited` + `enableAudit()`); see
-  [docs/audit-guide.md](docs/audit-guide.md).
-- **Multi-tenancy** (DISCRIMINATOR/SCHEMA/DATABASE) and a **Spring Boot starter** with a
-  `@JEHibernateRepositoryTest` slice.
-- Published coordinate is now `de.jexcellence.hibernate:jehibernate-core` (was `JEHibernate`).
-
-### Plugin quickstart (existing users)
-
-```kotlin
-implementation("de.jexcellence.hibernate:jehibernate-core:4.0.0")
-runtimeOnly("com.mysql:mysql-connector-j:9.3.0")
-// Keep 3.x schema behaviour if you are not ready for migrations yet:
-//   .configuration(c -> c.ddlAuto("update"))  — or set jehibernate.migration.enabled=false
-```
-
-```java
-var je = JEHibernate.fromProperties(getDataFolder(), "database", "hibernate.properties");
-var users = je.repositories().get(UserRepository.class);
-```
-
-### Spring Boot quickstart (new users)
-
-Add the starter — auto-configuration reuses your Spring `DataSource` and registers a `JEHibernate`
-bean. No `@Bean` boilerplate needed:
-
-```kotlin
-implementation("de.jexcellence.hibernate:jehibernate-spring-boot:4.0.0")
-```
-
-```yaml
-# application.yml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/app
-    username: app
-    password: secret
-jehibernate:
-  database: POSTGRESQL
-  ddl-auto: validate
-  scan-packages: [com.example.domain]
-  migration-enabled: false   # let Spring Boot's own Flyway run migrations
-```
-
-```java
-@Service
-class UserService {
-    private final UserRepository users;
-    UserService(JEHibernate jeHibernate) {          // auto-configured bean
-        this.users = jeHibernate.repositories().get(UserRepository.class);
-    }
-}
-```
-
-The auto-configuration activates when a `DataSource` bean is present, reuses it (JEHibernate never
-closes Spring's pool), and is driven by `jehibernate.*` properties. To configure programmatically
-instead, define your own `JEHibernate` `@Bean` (auto-config backs off via `@ConditionalOnMissingBean`).
-Set `jehibernate.enabled=false` to disable it entirely.
-
-### Migration guide
-
-| Property | Default | Meaning |
-|---|---|---|
-| `jehibernate.migration.enabled` | `true` | Run migrations at bootstrap |
-| `jehibernate.migration.tool` | `flyway` | `flyway` \| `liquibase` \| `none` |
-| `jehibernate.migration.location` | `classpath:db/migration` | Flyway location / Liquibase changelog path |
-| `jehibernate.pool.maximumPoolSize` | `10` | HikariCP max connections |
-| `jehibernate.pool.minimumIdle` | `2` | HikariCP min idle connections |
-
-Add `org.flywaydb:flyway-core` to the classpath to enable Flyway; omit it and migration is a
-silent no-op. Put SQL files in `src/main/resources/db/migration/V001__init.sql`,
-`V002__...`, etc.
-
-### Multi-tenancy (optional, off by default)
-
-```java
-// DISCRIMINATOR: a @TenantId column on entities; strict leak-guard throws if no tenant is bound.
-config.multiTenancy(MultiTenancyConfig.discriminator());
-```
-
-```java
-try (var ignored = TenantContext.open("acme")) {
-    noteRepo.findAll();   // sees only acme's data
-}
-```
-
-Strategies: `DISCRIMINATOR` (row-level), `SCHEMA` (schema-per-tenant, shared pool), `DATABASE`
-(database-per-tenant). Full details in [docs/multi-tenancy-guide.md](docs/multi-tenancy-guide.md).
-
-## Table of Contents
-
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-  - [Builder API](#builder-api)
-  - [Properties File](#properties-file)
-  - [Supported Databases](#supported-databases)
-  - [Connection Pooling](#connection-pooling)
-  - [Second-Level Cache](#second-level-cache)
-- [Entity Base Classes](#entity-base-classes)
-- [Repository Operations](#repository-operations)
-  - [CRUD](#crud)
-  - [Batch Operations](#batch-operations)
-  - [Async Operations](#async-operations)
-- [Session-Scoped Operations](#session-scoped-operations)
-- [Query Builder](#query-builder)
-  - [Filtering](#filtering)
-  - [OR Conditions](#or-conditions)
-  - [Sorting](#sorting)
-  - [Pagination](#pagination)
-  - [Fetch Joins](#fetch-joins)
-  - [Streaming](#streaming)
-- [Specifications](#specifications)
-- [Caching](#caching)
-- [Transaction Management](#transaction-management)
-- [Dependency Injection](#dependency-injection)
-- [Bukkit / Paper Integration](#bukkit--paper-integration)
-- [Spring Boot Integration](#spring-boot-integration)
-- [Logging](#logging)
-- [Troubleshooting](#troubleshooting)
-- [Architecture](#architecture)
-- [License](#license)
-
----
-
-## Installation
+Replace `4.2.0` with the current version shown on the Maven Central badge above.
 
 ### Gradle (Kotlin DSL)
 
 ```kotlin
 dependencies {
-    implementation("de.jexcellence.hibernate:jehibernate-core:4.0.0")
+    implementation("de.jexcellence.hibernate:jehibernate-core:4.2.0")
 
     // Pick your database driver
-    runtimeOnly("com.h2database:h2:2.4.240")         // H2 (embedded, dev/testing)
+    runtimeOnly("com.h2database:h2:2.4.240")          // H2 (embedded, dev/testing)
     runtimeOnly("com.mysql:mysql-connector-j:9.3.0")  // MySQL
-    runtimeOnly("org.postgresql:postgresql:42.7.7")    // PostgreSQL
-}
-```
-
-### Gradle (Groovy)
-
-```groovy
-dependencies {
-    implementation 'de.jexcellence.hibernate:JEHibernate:3.0.1'
-    runtimeOnly 'com.h2database:h2:2.4.240'
+    runtimeOnly("org.postgresql:postgresql:42.7.7")   // PostgreSQL
 }
 ```
 
@@ -192,10 +46,13 @@ dependencies {
 ```xml
 <dependency>
     <groupId>de.jexcellence.hibernate</groupId>
-    <artifactId>JEHibernate</artifactId>
-    <version>3.0.1</version>
+    <artifactId>jehibernate-core</artifactId>
+    <version>4.2.0</version>
 </dependency>
 ```
+
+Multi-module projects can import the [BOM](#modules) (`jehibernate-bom`) to align every module on one
+version.
 
 ---
 
@@ -218,7 +75,9 @@ public class PlayerData extends UuidEntity {
         this.username = username;
     }
 
-    // getters + setters
+    public String getUsername() { return username; }
+    public long getBalance()    { return balance; }
+    public void setBalance(long balance) { this.balance = balance; }
 }
 ```
 
@@ -226,16 +85,16 @@ public class PlayerData extends UuidEntity {
 
 ```java
 public class PlayerRepository extends AbstractCrudRepository<PlayerData, UUID> {
-    public PlayerRepository(ExecutorService executor, EntityManagerFactory emf, Class<PlayerData> entityClass) {
-        super(executor, emf, entityClass);
+    public PlayerRepository(ExecutorService executor, EntityManagerFactory emf) {
+        super(executor, emf);   // entity type inferred from the generic superclass
     }
 }
 ```
 
-**3. Initialize and use**
+**3. Save and load asynchronously**
 
 ```java
-var jeHibernate = JEHibernate.builder()
+var je = JEHibernate.builder()
     .configuration(config -> config
         .database(DatabaseType.H2)
         .url("jdbc:h2:file:./plugins/MyPlugin/database/mydb")
@@ -244,24 +103,38 @@ var jeHibernate = JEHibernate.builder()
     .scanPackages("com.example.myplugin")
     .build();
 
-var playerRepo = jeHibernate.repositories().get(PlayerRepository.class);
+var players = je.repositories().get(PlayerRepository.class);
+var uuid = UUID.randomUUID();
 
-// Create
-var player = playerRepo.create(new PlayerData(uuid, "alice"));
+// Save, then load — off the main thread, callbacks on completion
+players.createAsync(new PlayerData(uuid, "alice"))
+    .thenCompose(saved -> players.findByIdAsync(saved.getId()))
+    .thenAccept(found -> found.ifPresent(p ->
+        System.out.println("Loaded " + p.getUsername() + " (balance " + p.getBalance() + ")")));
 
-// Read
-var found = playerRepo.findByIdOrThrow(uuid);
-
-// Update
-player.setBalance(1000);
-playerRepo.save(player);
-
-// Async (never blocks the main thread)
-playerRepo.findByIdAsync(uuid).thenAccept(opt -> { ... });
-
-// Shutdown
-jeHibernate.close();
+je.close(); // on shutdown
 ```
+
+Every repository method has a synchronous form (`create`, `findById`, `save`, …) and an async
+`*Async` variant returning `CompletableFuture`. On Java 21+ the async variants run on virtual
+threads; on Java 17 they use a cached thread pool.
+
+For the full API — query builder, specifications, caching, transactions, dependency injection,
+and platform integration — see the [API reference](docs/reference.md).
+
+---
+
+## Modules
+
+Pick the modules you need:
+
+| Module | Use it for |
+|---|---|
+| `jehibernate-core` | **Required.** The library — repositories, sessions, pooling, migration. |
+| `jehibernate-spring-boot` | Spring Boot auto-configuration that reuses your `DataSource` bean. |
+| `jehibernate-plugin` | Spigot/Paper `PropertyLoader` data-folder convenience. |
+| `jehibernate-testing` | Testcontainers + fixtures (test scope only). |
+| `jehibernate-bom` | Maven BOM that aligns the versions of all modules. |
 
 ---
 
@@ -299,46 +172,35 @@ var jeh = JEHibernate.fromProperties(getDataFolder(), "database", "hibernate.pro
 Place `hibernate.properties` in `src/main/resources/database/`:
 
 ```properties
-# ============================================
-# Database Type
-# ============================================
-# Supported: H2, MYSQL, MARIADB, POSTGRESQL, ORACLE, MSSQL_SERVER, SQLITE, HSQLDB
+# Database type. Supported: H2, MYSQL, MARIADB, POSTGRESQL, ORACLE, MSSQL_SERVER, SQLITE, HSQLDB
 database.type=H2
 
-# ============================================
 # H2 (embedded, no external database needed)
-# ============================================
 h2.url=jdbc:h2:file:./plugins/MyPlugin/database/mydb;MODE=MySQL;AUTO_SERVER=TRUE
 h2.username=sa
 h2.password=
-# h2.driver=org.h2.Driver            # optional, auto-detected
-# h2.dialect=org.hibernate.dialect.H2Dialect
 
-# ============================================
 # MySQL (uncomment and set database.type=MYSQL)
-# ============================================
 # mysql.url=jdbc:mysql://localhost:3306/mydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
 # mysql.username=root
 # mysql.password=change_me
 
-# ============================================
 # PostgreSQL (uncomment and set database.type=POSTGRESQL)
-# ============================================
 # postgresql.url=jdbc:postgresql://localhost:5432/mydb
 # postgresql.username=postgres
 # postgresql.password=change_me
 
-# ============================================
-# Hibernate Settings
-# ============================================
+# Hibernate settings
 hibernate.hbm2ddl.auto=update
 hibernate.show_sql=false
 hibernate.format_sql=false
 ```
 
-Server admins switch databases by changing `database.type` and uncommenting the relevant section. No recompilation needed. All `hibernate.*` properties pass through directly to Hibernate.
+Server admins switch databases by changing `database.type` and uncommenting the relevant section —
+no recompilation needed. All `hibernate.*` properties pass through directly to Hibernate.
 
-Property format: `{prefix}.url`, `{prefix}.username`, `{prefix}.password`. Optionally `{prefix}.driver` and `{prefix}.dialect` to override auto-detected defaults.
+Property format: `{prefix}.url`, `{prefix}.username`, `{prefix}.password`. Optionally
+`{prefix}.driver` and `{prefix}.dialect` to override auto-detected defaults.
 
 ### Supported Databases
 
@@ -355,18 +217,19 @@ Property format: `{prefix}.url`, `{prefix}.username`, `{prefix}.password`. Optio
 
 ### Connection Pooling
 
-Add Agroal to your dependencies for production connection pooling:
-
-```kotlin
-implementation("org.hibernate.orm:hibernate-agroal")
-implementation("io.agroal:agroal-pool:2.5")
-```
+HikariCP is the default connection pool and is bundled with `jehibernate-core` — no extra
+dependency needed. Size it via the builder:
 
 ```java
 .connectionPool(5, 20)  // min 5, max 20 connections
 ```
 
+For finer control (idle timeout, leak detection, max lifetime) pass a `PoolConfig`, and inspect the
+pool at runtime via `jeHibernate.getPoolHealth()`.
+
 ### Second-Level Cache
+
+Add a JCache provider to enable Hibernate's second-level cache:
 
 ```kotlin
 implementation("org.hibernate.orm:hibernate-jcache")
@@ -380,7 +243,9 @@ implementation("org.hibernate.orm:hibernate-jcache")
 
 ## Entity Base Classes
 
-All base classes provide automatic `createdAt` / `updatedAt` timestamps, optimistic locking via `@Version`, and correct `equals` / `hashCode` (safe for `HashSet` / `HashMap` even before persistence).
+All base classes provide automatic `createdAt` / `updatedAt` timestamps, optimistic locking via
+`@Version`, and correct `equals` / `hashCode` (safe for `HashSet` / `HashMap` even before
+persistence).
 
 | Class | ID Type | Use Case |
 |-------|---------|----------|
@@ -396,614 +261,130 @@ public class Warp extends LongIdEntity {
     private double x, y, z;
     // ...
 }
-
-@Entity
-public class PlayerData extends UuidEntity {
-    private String username;
-    private long balance;
-    // ...
-}
 ```
 
 ---
 
-## Repository Operations
+## Spring Boot Starter
 
-### CRUD
-
-```java
-// Create
-var player = repo.create(new PlayerData(uuid, "alice"));
-
-// Read
-Optional<PlayerData> found = repo.findById(uuid);
-PlayerData player = repo.findByIdOrThrow(uuid);
-PlayerData player = repo.findByIdOrCreate(uuid, () -> new PlayerData(uuid, "alice"));
-List<PlayerData> all = repo.findAll();
-
-// Save (creates if new, updates if existing)
-repo.save(player);
-
-// Update
-player.setBalance(1000);
-repo.update(player);
-
-// Delete
-repo.delete(uuid);
-repo.deleteEntity(player);
-
-// Refresh (discard in-memory changes, re-read from DB)
-repo.refresh(player);
-
-// Existence + Count
-boolean exists = repo.exists(uuid);
-long count = repo.count();
-```
-
-### Batch Operations
-
-```java
-repo.createAll(List.of(player1, player2, player3));
-repo.saveAll(playerList);      // batch create + update in one call
-repo.updateAll(playerList);
-repo.deleteAll(List.of(uuid1, uuid2, uuid3));
-repo.findAllById(List.of(uuid1, uuid2));
-```
-
-### Async Operations
-
-Every method has an async variant returning `CompletableFuture`. On Java 21+ these run on virtual threads; on Java 17 they use a cached thread pool.
-
-```java
-repo.createAsync(player).thenAccept(p -> log("Created: " + p.getId()));
-repo.findByIdAsync(uuid).thenAccept(opt -> opt.ifPresent(this::greet));
-repo.saveAllAsync(players).join();
-```
-
----
-
-## Session-Scoped Operations
-
-Without session scoping, each repository call opens and closes its own `EntityManager`. Entities are immediately detached, and lazy-loaded collections throw `LazyInitializationException`.
-
-`withSession` keeps the EntityManager open for the entire callback:
-
-```java
-// Transactional -- lazy loading works, changes are committed
-repo.withSession(session -> {
-    PlayerData player = session.find(PlayerData.class, uuid).orElseThrow();
-    player.getInventory().size();  // lazy collection -- works!
-
-    player.setBalance(500);
-    session.merge(player);
-    return player;
-});
-
-// Read-only -- no transaction overhead
-repo.withReadOnly(session -> {
-    PlayerData player = session.find(PlayerData.class, uuid).orElseThrow();
-    return new ArrayList<>(player.getFriends());
-});
-
-// Repository-agnostic (via JEHibernate entry point)
-jeHibernate.withSession(session -> {
-    var player = session.find(PlayerData.class, uuid).orElseThrow();
-    var warps = session.query(Warp.class).and("owner", uuid).list();
-    return warps;
-});
-```
-
----
-
-## Query Builder
-
-Type-safe, fluent queries. No SQL, no JPQL.
-
-### Filtering
-
-```java
-var results = repo.query()
-    .and("active", true)                        // equality
-    .like("username", "%alice%")                 // LIKE
-    .greaterThan("balance", 100)                 // comparisons
-    .lessThanOrEqual("level", 50)
-    .between("createdAt", startDate, endDate)    // range
-    .in("rank", List.of("VIP", "ADMIN"))         // IN clause
-    .isNotNull("lastLogin")                      // null checks
-    .notEqual("status", "BANNED")
-    .list();
-```
-
-### OR Conditions
-
-```java
-var results = repo.query()
-    .and("active", true)
-    .or("rank", "ADMIN")
-    .or("rank", "MODERATOR")
-    .list();
-// WHERE active = true AND (rank = 'ADMIN' OR rank = 'MODERATOR')
-```
-
-### Sorting
-
-Multiple sort fields are supported. Calls accumulate.
-
-```java
-var results = repo.query()
-    .orderByDesc("balance")
-    .orderBy("username")
-    .list();
-```
-
-### Pagination
-
-```java
-// Simple
-List<PlayerData> page1 = repo.findAll(0, 20);
-
-// Rich metadata (count + data in one session for consistency)
-PageResult<PlayerData> page = repo.query()
-    .and("active", true)
-    .orderByDesc("balance")
-    .getPage(0, 20);
-
-page.content();        // List<PlayerData>
-page.totalElements();  // total matching count
-page.totalPages();     // total pages
-page.hasNext();        // more pages?
-page.hasPrevious();
-page.isFirst();
-page.isLast();
-```
-
-### Fetch Joins
-
-Prevent N+1 queries by loading associations in the same SQL query:
-
-```java
-var results = repo.query()
-    .fetch("inventory")       // INNER JOIN FETCH
-    .fetchLeft("guild")       // LEFT JOIN FETCH (nullable)
-    .and("active", true)
-    .list();
-```
-
-### Streaming
-
-Process large datasets without loading everything into memory:
-
-```java
-// MUST use try-with-resources
-try (var stream = repo.query().and("active", true).stream()) {
-    stream.filter(p -> p.getBalance() > 10_000)
-          .forEach(this::processRichPlayer);
-}
-```
-
-### Async Queries
-
-```java
-repo.query().and("active", true).listAsync()
-    .thenAccept(players -> log("Found " + players.size()));
-
-repo.query().getPageAsync(0, 20)
-    .thenAccept(page -> log("Total: " + page.totalElements()));
-```
-
----
-
-## Specifications
-
-Reusable, composable query predicates:
-
-```java
-Specification<PlayerData> richActive = Specifications.<PlayerData>equal("active", true)
-    .and(Specifications.greaterThan("balance", 10_000));
-
-List<PlayerData> players = repo.findAll(richActive);
-long count = repo.count(richActive);
-boolean any = repo.existsBy(richActive);
-Optional<PlayerData> one = repo.findOne(richActive);
-```
-
-Supports: `equal`, `notEqual`, `like`, `in`, `isNull`, `isNotNull`, `greaterThan`, `lessThan`, `greaterThanOrEqual`, `lessThanOrEqual`, `between`. Nested properties work with dot notation: `"user.address.city"`.
-
----
-
-## Caching
-
-Extend `AbstractCachedRepository` for dual-layer Caffeine caching (by ID and by custom key). The cache uses industry-standard patterns: cache-aside reads, write-through mutations, thundering herd protection, and optional stale-while-revalidate.
-
-### How It Works
-
-| Pattern | What Happens |
-|---|---|
-| **Cache-Aside** (reads) | Check cache first. On miss, load from DB and populate cache. Concurrent misses for the same key are coalesced into a single DB query (thundering herd protection). |
-| **Write-Through** (mutations) | Every create/update/save writes to DB first, then updates the cache. Deletes evict before the DB write. |
-| **TTL Jitter** | Expiration times include random jitter (default 10% of TTL) to prevent mass expiry stampedes after bulk preload. |
-| **Stale-While-Revalidate** (optional) | When `refreshAfterWrite` is set, expired entries serve stale data immediately while reloading in the background. Users never block on revalidation. |
-
-### Basic Setup
-
-```java
-public class PlayerRepository extends AbstractCachedRepository<PlayerData, UUID, String> {
-    public PlayerRepository(ExecutorService ex, EntityManagerFactory emf, Class<PlayerData> cls) {
-        super(ex, emf, cls,
-            PlayerData::getUsername,   // cache key extractor
-            CacheConfig.builder()
-                .expiration(Duration.ofMinutes(30))
-                .maxSize(5000)
-                .expireAfterAccess(true)
-                .build());
-    }
-}
-```
-
-### With Stale-While-Revalidate
-
-For high-traffic lookups where slight staleness is acceptable (player profiles, leaderboards):
-
-```java
-CacheConfig.builder()
-    .expiration(Duration.ofMinutes(30))
-    .refreshAfterWrite(Duration.ofMinutes(25))  // after 25min, serve stale + reload async
-    .maxSize(5000)
-    .jitterPercent(10)  // TTL varies by +/-10% to prevent mass expiry
-    .build()
-```
-
-### Cache Operations
-
-```java
-// Lookups (thundering herd safe)
-repo.findByKey("alice");                                             // memory only
-repo.findByKey("username", "alice");                                 // DB fallback
-repo.getOrCreate("username", "alice", k -> new PlayerData(uuid, k)); // get or create
-
-// Eviction
-repo.evict(player);
-repo.evictById(uuid);
-repo.evictByKey("alice");
-repo.evictAll();
-
-// Preloading (warm cache on startup)
-repo.preloadAsync();       // load all (small tables)
-repo.preloadAsync(1000);   // load first 1000 (large tables)
-
-// Monitoring
-repo.logCacheStats();      // logs hit rate, misses, evictions, size
-CacheStats stats = repo.getKeyCacheStats();
-long size = repo.getCacheSize();
-```
-
-### Cache Contract
-
-Before using caching, consider these questions for your use case:
-
-| Question | Default Behavior |
-|---|---|
-| **Staleness window?** | Configurable TTL (default 30 min). Data may be stale up to this duration. |
-| **Who invalidates?** | Automatic on all mutation paths (create, update, save, delete, batch variants). |
-| **Cold start?** | Call `preload()` or `preload(limit)` in `onEnable()`. Cache populates on first access otherwise. |
-| **Wrong data consequence?** | For balances/permissions, use short TTL or skip cache. For display names/stats, longer TTL is fine. |
-
-All mutations (create, update, save, delete) automatically maintain cache consistency.
-
----
-
-## Transaction Management
-
-### TransactionTemplate
-
-```java
-TransactionTemplate tx = jeHibernate.transactionTemplate();
-
-// Transactional
-PlayerData player = tx.execute(em -> {
-    var p = em.find(PlayerData.class, uuid);
-    p.setBalance(p.getBalance() + 100);
-    return em.merge(p);
-});
-
-// Read-only (no transaction overhead)
-List<PlayerData> top = tx.executeReadOnly(em ->
-    em.createQuery("SELECT p FROM PlayerData p ORDER BY p.balance DESC", PlayerData.class)
-      .setMaxResults(10)
-      .getResultList());
-```
-
-### Optimistic Lock Retry
-
-Safely handle concurrent modifications with automatic retry and exponential backoff:
-
-```java
-// Default: 3 retries, 100ms backoff
-OptimisticLockRetry.execute(() -> {
-    var p = repo.findByIdOrThrow(uuid);
-    p.setBalance(p.getBalance() + amount);
-    return repo.save(p);
-});
-
-// Custom: 5 retries, 200ms backoff, also retry deadlocks
-OptimisticLockRetry.execute(
-    () -> transferBalance(from, to, amount),
-    5, Duration.ofMillis(200), true
-);
-
-// Void
-OptimisticLockRetry.executeVoid(() -> {
-    var p = repo.findByIdOrThrow(uuid);
-    p.setBalance(p.getBalance() + amount);
-    repo.save(p);
-});
-```
-
-Catches `OptimisticLockException`, `StaleObjectStateException`, `StaleStateException`, and optionally `LockAcquisitionException` (deadlocks) anywhere in the cause chain.
-
----
-
-## Dependency Injection
-
-```java
-public class EconomyService {
-    @Inject private PlayerRepository playerRepo;
-    @Inject private WarpRepository warpRepo;
-
-    public void transfer(UUID from, UUID to, long amount) { ... }
-}
-
-// Create with auto-injection
-var service = jeHibernate.repositories().createWithInjection(EconomyService.class);
-
-// Or inject into existing instance
-var service = new EconomyService();
-jeHibernate.repositories().injectInto(service);
-```
-
----
-
-## Bukkit / Paper Integration
-
-### Recommended Setup (Properties File)
-
-```
-your-plugin/
-  src/main/resources/
-    plugin.yml
-    database/
-      hibernate.properties
-    simplelogger.properties
-```
-
-```java
-public class MyPlugin extends JavaPlugin {
-    private JEHibernate jeHibernate;
-
-    @Override
-    public void onEnable() {
-        saveResource("database/hibernate.properties", false);
-
-        jeHibernate = JEHibernate.builder()
-            .configuration(config -> config.fromProperties(
-                PropertyLoader.load(getDataFolder(), "database", "hibernate.properties")))
-            .scanPackages("com.example.myplugin")
-            .build();
-
-        var playerRepo = jeHibernate.repositories().get(PlayerRepository.class);
-        playerRepo.preloadAsync();
-    }
-
-    @Override
-    public void onDisable() {
-        jeHibernate.close();
-    }
-}
-```
-
-### Main Thread Safety
-
-Never block the Bukkit main thread with database calls. Use async methods:
-
-```java
-playerRepo.findByIdAsync(uuid).thenAccept(opt ->
-    opt.ifPresent(player ->
-        Bukkit.getScheduler().runTask(plugin, () ->
-            player.sendMessage("Balance: " + player.getBalance())
-        )
-    )
-);
-```
-
-### Builder API (Alternative)
-
-```java
-jeHibernate = JEHibernate.builder()
-    .configuration(config -> config
-        .database(DatabaseType.MYSQL)
-        .url("jdbc:mysql://localhost:3306/minecraft")
-        .credentials("mc", "secret")
-        .ddlAuto("update")
-        .connectionPool(2, 10))
-    .scanPackages("com.example.myplugin")
-    .build();
-```
-
----
-
-## Spring Boot Integration
-
-```java
-@Configuration
-public class JEHibernateConfig {
-
-    @Bean
-    public JEHibernate jeHibernate() {
-        return JEHibernate.builder()
-            .configuration(config -> config
-                .database(DatabaseType.POSTGRESQL)
-                .url("jdbc:postgresql://localhost:5432/mydb")
-                .credentials("user", "pass")
-                .ddlAuto("validate")
-                .connectionPool(5, 20))
-            .scanPackages("com.example")
-            .build();
-    }
-
-    @Bean
-    public PlayerRepository playerRepository(JEHibernate jeh) {
-        return jeh.repositories().get(PlayerRepository.class);
-    }
-
-    @PreDestroy
-    public void shutdown(JEHibernate jeh) {
-        jeh.close();
-    }
-}
-```
-
-Or load from a properties file:
-
-```java
-@Bean
-public JEHibernate jeHibernate() {
-    return JEHibernate.fromProperties("config/hibernate.properties");
-}
-```
-
----
-
-## Logging
-
-JEHibernate uses SLF4J. You need an implementation on your classpath.
-
-### Bukkit / Paper (slf4j-simple)
+Add the starter — auto-configuration reuses your Spring `DataSource` and registers a `JEHibernate`
+bean. No `@Bean` boilerplate needed:
 
 ```kotlin
-implementation("org.slf4j:slf4j-simple:2.0.16")
+implementation("de.jexcellence.hibernate:jehibernate-spring-boot:4.2.0")
 ```
 
-Create `simplelogger.properties` in `src/main/resources/`:
-
-```properties
-org.slf4j.simpleLogger.defaultLogLevel=info
-org.slf4j.simpleLogger.log.de.jexcellence.jehibernate=info
-org.slf4j.simpleLogger.log.org.hibernate.SQL=warn
-org.slf4j.simpleLogger.log.org.hibernate.orm.jdbc.bind=warn
-org.slf4j.simpleLogger.showDateTime=true
-org.slf4j.simpleLogger.dateTimeFormat=yyyy-MM-dd HH:mm:ss
-org.slf4j.simpleLogger.showThreadName=true
-org.slf4j.simpleLogger.showShortLogName=true
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app
+    username: app
+    password: secret
+jehibernate:
+  database: POSTGRESQL
+  ddl-auto: validate
+  scan-packages: [com.example.domain]
+  migration-enabled: false   # let Spring Boot's own Flyway run migrations
 ```
-
-### Spring Boot (Logback, already included)
-
-```xml
-<logger name="de.jexcellence.jehibernate" level="INFO"/>
-<logger name="org.hibernate.SQL" level="WARN"/>
-```
-
-### Slow Query Detection
-
-Queries exceeding 500ms are automatically logged at WARN level.
 
 ```java
-QueryLogger.setSlowQueryThreshold(1000); // customize to 1 second
+@Service
+class UserService {
+    private final UserRepository users;
+    UserService(JEHibernate jeHibernate) {          // auto-configured bean
+        this.users = jeHibernate.repositories().get(UserRepository.class);
+    }
+}
+```
+
+The auto-configuration activates when a `DataSource` bean is present, reuses it (JEHibernate never
+closes Spring's pool), and is driven by `jehibernate.*` properties. To configure programmatically
+instead, define your own `JEHibernate` `@Bean` (auto-config backs off via `@ConditionalOnMissingBean`).
+Set `jehibernate.enabled=false` to disable it entirely. See the
+[API reference](docs/reference.md#spring-boot-integration) for the programmatic path.
+
+---
+
+## Schema Migration
+
+Migrations own the schema (`ddl-auto` defaults to `validate`). Flyway runs before Hibernate boots.
+
+| Property | Default | Meaning |
+|---|---|---|
+| `jehibernate.migration.enabled` | `true` | Run migrations at bootstrap |
+| `jehibernate.migration.tool` | `flyway` | `flyway` \| `liquibase` \| `none` |
+| `jehibernate.migration.location` | `classpath:db/migration` | Flyway location / Liquibase changelog path |
+| `jehibernate.pool.maximumPoolSize` | `10` | HikariCP max connections |
+| `jehibernate.pool.minimumIdle` | `2` | HikariCP min idle connections |
+
+Add `org.flywaydb:flyway-core` to the classpath to enable Flyway; omit it and migration is a silent
+no-op. Put SQL files in `src/main/resources/db/migration/V001__init.sql`, `V002__...`, etc.
+
+To keep the pre-4.0 `hbm2ddl.auto=update` behaviour instead of migrations:
+
+```java
+.configuration(c -> c.database(...).url(...).ddlAuto("update"))
+// or set jehibernate.migration.enabled=false
 ```
 
 ---
 
-## Troubleshooting
-
-### LazyInitializationException
-
-Happens when accessing a lazy collection after the EntityManager is closed.
+## Multi-Tenancy (optional, off by default)
 
 ```java
-// WRONG
-var player = repo.findByIdOrThrow(uuid);
-player.getInventory().size();  // LazyInitializationException
+// DISCRIMINATOR: a @TenantId column on entities; strict leak-guard throws if no tenant is bound.
+config.multiTenancy(MultiTenancyConfig.discriminator());
 
-// FIX 1: session scope
-repo.withSession(session -> {
-    var p = session.find(PlayerData.class, uuid).orElseThrow();
-    return p.getInventory().size();  // works
-});
-
-// FIX 2: fetch join
-repo.query().fetch("inventory").and("id", uuid).first();
+try (var ignored = TenantContext.open("acme")) {
+    noteRepo.findAll();   // sees only acme's data
+}
 ```
 
-### OptimisticLockException
-
-Two threads updated the same entity. Wrap in retry:
-
-```java
-OptimisticLockRetry.execute(() -> {
-    var p = repo.findByIdOrThrow(uuid);
-    p.setBalance(p.getBalance() + amount);
-    return repo.save(p);
-});
-```
-
-### Slow Queries
-
-JEHibernate logs queries over 500ms at WARN level. Enable Hibernate SQL logging to see the generated SQL:
-
-```properties
-hibernate.show_sql=true
-hibernate.format_sql=true
-```
-
-### Database Not Found / Connection Refused
-
-Check that your database driver is on the classpath and the URL, credentials, and port are correct. For H2 file mode, ensure the plugin data directory exists.
+Strategies: `DISCRIMINATOR` (row-level), `SCHEMA` (schema-per-tenant, shared pool), `DATABASE`
+(database-per-tenant). Full details in [docs/multi-tenancy-guide.md](docs/multi-tenancy-guide.md).
 
 ---
 
-## Architecture
+## Documentation
 
-```
-Repository Hierarchy (Sealed Interfaces)
+- [API reference](docs/reference.md) — repository operations, query builder, specifications,
+  caching, transactions, dependency injection, Bukkit/Paper and Spring Boot integration,
+  logging, troubleshooting, and architecture.
+- [Lazy-loading guide](docs/lazy-loading-guide.md) — session scoping vs. read-only vs. EntityGraph vs. OSIV.
+- [Audit guide](docs/audit-guide.md) — Hibernate Envers audit trail, with DSGVO retention/erasure notes.
+- [Multi-tenancy guide](docs/multi-tenancy-guide.md) — DISCRIMINATOR / SCHEMA / DATABASE strategies.
+- [Testing guide](docs/testing-guide.md) — `@JEHibernateTest`, Testcontainers, fixtures.
+- [Architecture decision records](docs/adr/) — the rationale behind the 4.0 design.
+- [CHANGELOG](CHANGELOG.md) — release history and migration notes.
+- [CONTRIBUTING](CONTRIBUTING.md) — build, test, and code-style guidance for contributors.
 
-Repository<T, ID>                   findById, findAll, save, delete, count
-    |
-CrudRepository<T, ID>              create, update, batch ops, pagination
-    |
-AsyncRepository<T, ID>             CompletableFuture variants of everything
-    |
-QueryableRepository<T, ID>         query(), findOne/findAll/count with Spec
-    |
-AbstractCrudRepository<T, ID>      Full implementation + session scoping
-    |
-AbstractCachedRepository<T, ID, K> Dual-layer Caffeine caching
+---
+
+## Upgrading to 4.0
+
+4.0 is a multi-module release. The key changes:
+
+- **Published coordinate:** `de.jexcellence.hibernate:JEHibernate` → `de.jexcellence.hibernate:jehibernate-core`.
+- **HikariCP** replaced Agroal as the default connection pool (bundled; `connectionPool(min, max)` unchanged).
+- **`ddl-auto` defaults to `validate`** (was `update`) — migrations own the schema.
+- **Flyway migrations** run before Hibernate boots; Liquibase is opt-in.
+- **Audit trail** via Hibernate Envers (`@Audited` + `enableAudit()`) and **multi-tenancy** (DISCRIMINATOR/SCHEMA/DATABASE) added.
+
+```kotlin
+// before
+implementation("de.jexcellence.hibernate:JEHibernate:3.0.4")
+// after
+implementation("de.jexcellence.hibernate:jehibernate-core:4.2.0")
+implementation("org.flywaydb:flyway-core:11.1.1") // optional: enables migrations
 ```
 
-```
-Package Structure
-
-de.jexcellence.jehibernate
-  config/         ConfigurationBuilder, DatabaseConfig, DatabaseType, PropertyLoader
-  core/           JEHibernate (main entry point)
-  entity/base/    BaseEntity, LongIdEntity, UuidEntity, StringIdEntity, Identifiable
-  converter/      UuidConverter, InstantConverter
-  exception/      TransactionException, EntityNotFoundException, ValidationException, ...
-  logging/        QueryLogger
-  naming/         SnakeCaseStrategy (camelCase -> snake_case)
-  repository/
-    base/         Repository hierarchy + AbstractCrudRepository + AbstractCachedRepository
-    query/        QueryBuilder, PageResult, Specification, Specifications
-    injection/    @Inject, InjectionProcessor
-    manager/      RepositoryFactory, RepositoryRegistry
-  scanner/        EntityScanner, RepositoryScanner
-  session/        SessionContext
-  transaction/    TransactionTemplate, OptimisticLockRetry
-```
+See the [CHANGELOG](CHANGELOG.md) and [docs/adr/](docs/adr/) for the full migration notes.
 
 ---
 
 ## License
 
-[MIT License](https://opensource.org/licenses/MIT)
+[MIT License](LICENSE)
 
 Copyright (c) 2025 JExcellence
