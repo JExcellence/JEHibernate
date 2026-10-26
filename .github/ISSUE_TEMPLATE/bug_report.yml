@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a defect in JEHibernate
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the sections below so it can be reproduced.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+      placeholder: On save(), the transaction fails with ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: A minimal reproduction. Include entity/repository definitions and the call that fails.
+      placeholder: |
+        1. Define `PlayerData extends UuidEntity`
+        2. Call `repo.save(player)`
+        3. See exception
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Stack trace / logs
+      description: Relevant log output or stack trace.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: JEHibernate version
+      placeholder: "4.2.0"
+    validations:
+      required: true
+  - type: input
+    id: java-version
+    attributes:
+      label: Java version
+      placeholder: "21 (Temurin)"
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - H2
+        - MySQL
+        - MariaDB
+        - PostgreSQL
+        - Oracle
+        - SQL Server
+        - SQLite
+        - HSQLDB
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Spigot / Paper / Folia
+        - Spring Boot
+        - Standalone Java
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps — pool config, migrations, multi-tenancy, etc.
